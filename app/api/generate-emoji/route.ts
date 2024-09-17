@@ -1,4 +1,3 @@
-import { createClient } from '@supabase/supabase-js'
 import { NextResponse, NextRequest } from "next/server";
 import { getAuth, clerkClient } from "@clerk/nextjs/server";
 import Replicate from "replicate";
@@ -8,20 +7,12 @@ import { cookies } from 'next/headers';
 if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
   throw new Error('NEXT_PUBLIC_SUPABASE_URL is not defined');
 }
-if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
-  throw new Error('SUPABASE_SERVICE_ROLE_KEY is not defined');
-}
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-)
 
 const replicate = new Replicate({
   auth: process.env.REPLICATE_API_TOKEN,
 });
 
-async function ensureEmojiBucketExists() {
+async function ensureEmojiBucketExists(supabase) {
   const { data: buckets, error: bucketsError } = await supabase.storage.listBuckets();
 
   if (bucketsError) {
@@ -49,7 +40,7 @@ export async function POST(req: NextRequest) {
     console.log("Starting emoji generation process");
 
     // Ensure the "emojis" bucket exists
-    await ensureEmojiBucketExists();
+    await ensureEmojiBucketExists(supabase);
 
     // Step 1: Get the user's information from Clerk
     const { userId } = getAuth(req);
