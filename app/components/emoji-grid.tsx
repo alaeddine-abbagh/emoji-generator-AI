@@ -158,6 +158,7 @@ export default function EmojiGrid() {
           e.id === emojiId ? { ...e, likes_count: newLikesCount, is_liked_by_user: isLiked } : e
         )
       );
+      console.log(`Emoji ${emojiId} liked status updated to ${isLiked}`);
     } catch (error) {
       console.error('Error toggling like:', error);
     }
@@ -212,7 +213,10 @@ export default function EmojiGrid() {
                   className="text-white hover:text-purple-300"
                   onClick={() => toggleLike(emoji.id)}
                 >
-                  <Heart className={`h-6 w-6 ${emoji.is_liked_by_user ? 'fill-current text-red-500' : ''}`} />
+                  <Heart 
+                    className={`h-6 w-6 ${emoji.is_liked_by_user ? 'fill-current text-red-500' : ''}`} 
+                    fill={emoji.is_liked_by_user ? 'currentColor' : 'none'}
+                  />
                 </Button>
                 <Button
                   size="icon"
