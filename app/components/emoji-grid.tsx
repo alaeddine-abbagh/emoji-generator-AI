@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { Heart, Download } from "lucide-react";
+import { Heart, Download, Trash2 } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
@@ -21,6 +21,7 @@ export default function EmojiGrid() {
   const [emojis, setEmojis] = useState<Emoji[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { user } = useUser();
+  const isAdmin = user?.primaryEmailAddress?.emailAddress === 'blodrena1@gmail.com';
   const { emojis: contextEmojis, addEmoji } = useEmoji();
 
   useEffect(() => {
@@ -171,6 +172,23 @@ export default function EmojiGrid() {
     }
   };
 
+  const handleDelete = async (emojiId: number) => {
+    if (!isAdmin) return;
+
+    try {
+      const { error } = await supabase
+        .from('emojis')
+        .delete()
+        .eq('id', emojiId);
+
+      if (error) throw error;
+
+      setEmojis(currentEmojis => currentEmojis.filter(emoji => emoji.id !== emojiId));
+    } catch (error) {
+      console.error('Error deleting emoji:', error);
+    }
+  };
+
   const handleDownload = async (url: string, prompt: string) => {
     try {
       const response = await fetch(url);
@@ -233,6 +251,16 @@ export default function EmojiGrid() {
                 >
                   <Download className="h-6 w-6" />
                 </Button>
+                {isAdmin && (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="text-white hover:text-red-300"
+                    onClick={() => handleDelete(emoji.id)}
+                  >
+                    <Trash2 className="h-6 w-6" />
+                  </Button>
+                )}
               </div>
               <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 text-white px-2 py-1 rounded-md text-sm">
                 {emoji.likes_count} {emoji.likes_count === 1 ? 'like' : 'likes'}
