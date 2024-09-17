@@ -14,6 +14,7 @@ interface Emoji {
   prompt: string;
   likes_count: number;
   creator_user_id: string;
+  is_liked_by_user?: boolean;
 }
 
 export default function EmojiGrid() {
@@ -76,7 +77,26 @@ export default function EmojiGrid() {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setEmojis(data || []);
+
+      if (user) {
+        const { data: likes, error: likesError } = await supabase
+          .from('emoji_likes')
+          .select('emoji_id')
+          .eq('user_id', user.id);
+
+        if (likesError) throw likesError;
+
+        const likedEmojiIds = new Set(likes.map(like => like.emoji_id));
+
+        const emojisWithLikeStatus = data.map(emoji => ({
+          ...emoji,
+          is_liked_by_user: likedEmojiIds.has(emoji.id)
+        }));
+
+        setEmojis(emojisWithLikeStatus);
+      } else {
+        setEmojis(data);
+      }
     } catch (error) {
       console.error('Error fetching emojis:', error);
     } finally {
@@ -91,19 +111,51 @@ export default function EmojiGrid() {
       const emoji = emojis.find(e => e.id === emojiId);
       if (!emoji) return;
 
-      const newLikesCount = emoji.likes_count + 1;
+      const { data: existingLike, error: likeError } = await supabase
+        .from('emoji_likes')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('emoji_id', emojiId)
+        .single();
 
-      const { error } = await supabase
+      if (likeError && likeError.code !== 'PGRST116') throw likeError;
+
+      let newLikesCount = emoji.likes_count;
+      let isLiked = emoji.is_liked_by_user;
+
+      if (existingLike) {
+        // Unlike
+        const { error: deleteError } = await supabase
+          .from('emoji_likes')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('emoji_id', emojiId);
+
+        if (deleteError) throw deleteError;
+        newLikesCount--;
+        isLiked = false;
+      } else {
+        // Like
+        const { error: insertError } = await supabase
+          .from('emoji_likes')
+          .insert({ user_id: user.id, emoji_id: emojiId });
+
+        if (insertError) throw insertError;
+        newLikesCount++;
+        isLiked = true;
+      }
+
+      const { error: updateError } = await supabase
         .from('emojis')
         .update({ likes_count: newLikesCount })
         .eq('id', emojiId);
 
-      if (error) throw error;
+      if (updateError) throw updateError;
 
       // Update the local state immediately for a responsive UI
       setEmojis(currentEmojis =>
         currentEmojis.map(e =>
-          e.id === emojiId ? { ...e, likes_count: newLikesCount } : e
+          e.id === emojiId ? { ...e, likes_count: newLikesCount, is_liked_by_user: isLiked } : e
         )
       );
     } catch (error) {
@@ -160,7 +212,7 @@ export default function EmojiGrid() {
                   className="text-white hover:text-purple-300"
                   onClick={() => toggleLike(emoji.id)}
                 >
-                  <Heart className={`h-6 w-6 ${emoji.likes_count > 0 ? 'fill-current text-red-500' : ''}`} />
+                  <Heart className={`h-6 w-6 ${emoji.is_liked_by_user ? 'fill-current text-red-500' : ''}`} />
                 </Button>
                 <Button
                   size="icon"
