@@ -2,18 +2,28 @@ import { NextResponse, NextRequest } from "next/server";
 import { getAuth, clerkClient } from "@clerk/nextjs/server";
 import Replicate from "replicate";
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 
 if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
   throw new Error('NEXT_PUBLIC_SUPABASE_URL is not defined');
 }
 
+if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  throw new Error('SUPABASE_SERVICE_ROLE_KEY is not defined');
+}
+
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
+
 const replicate = new Replicate({
   auth: process.env.REPLICATE_API_TOKEN,
 });
 
 async function ensureEmojiBucketExists(supabase) {
-  const { data: buckets, error: bucketsError } = await supabase.storage.listBuckets();
+  const { data: buckets, error: bucketsError } = await supabaseAdmin.storage.listBuckets();
 
   if (bucketsError) {
     console.error("Error listing buckets:", bucketsError);
@@ -24,7 +34,7 @@ async function ensureEmojiBucketExists(supabase) {
 
   if (!emojiBucketExists) {
     console.log("Creating 'emojis' bucket");
-    const { data, error } = await supabase.storage.createBucket("emojis", { public: true });
+    const { data, error } = await supabaseAdmin.storage.createBucket("emojis", { public: true });
     if (error) {
       console.error("Error creating 'emojis' bucket:", error);
       throw new Error(`Failed to create 'emojis' bucket: ${error.message}`);
