@@ -95,7 +95,7 @@ export default function EmojiGrid() {
 
         setEmojis(emojisWithLikeStatus);
       } else {
-        setEmojis(data);
+        setEmojis(data.map(emoji => ({ ...emoji, is_liked_by_user: false })));
       }
     } catch (error) {
       console.error('Error fetching emojis:', error);
