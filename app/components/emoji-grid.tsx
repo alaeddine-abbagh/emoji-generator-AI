@@ -6,6 +6,7 @@ import { Button } from "../../components/ui/button";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useUser } from "@clerk/nextjs";
+import { useEmoji } from '../contexts/emoji-context';
 
 interface Emoji {
   id: number;
@@ -19,6 +20,7 @@ export default function EmojiGrid() {
   const [emojis, setEmojis] = useState<Emoji[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { user } = useUser();
+  const { emojis: contextEmojis, addEmoji } = useEmoji();
 
   useEffect(() => {
     fetchEmojis();
@@ -53,6 +55,17 @@ export default function EmojiGrid() {
       supabase.removeChannel(channel);
     };
   }, []);
+
+  useEffect(() => {
+    if (contextEmojis.length > 0) {
+      setEmojis(currentEmojis => {
+        const newEmojis = contextEmojis.filter(newEmoji => 
+          !currentEmojis.some(existingEmoji => existingEmoji.id === newEmoji.id)
+        );
+        return [...newEmojis, ...currentEmojis];
+      });
+    }
+  }, [contextEmojis]);
 
   const fetchEmojis = async () => {
     try {
