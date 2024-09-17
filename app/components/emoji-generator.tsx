@@ -41,7 +41,11 @@ export default function EmojiGenerator() {
         throw new Error("No URL returned from API");
       }
 
-      addEmoji({ id: Date.now(), image_url: data.url, prompt, likes_count: 0, creator_user_id: '' });
+      if (data.url) {
+        addEmoji({ id: Date.now(), image_url: data.url, prompt, likes_count: 0, creator_user_id: '' });
+      } else {
+        console.error("No URL returned for the generated emoji");
+      }
       setPrompt(''); // Clear the input after successful generation
     } catch (error) {
       console.error("Error generating emoji:", error);

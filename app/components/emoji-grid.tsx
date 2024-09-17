@@ -60,6 +60,7 @@ export default function EmojiGrid() {
     if (contextEmojis.length > 0) {
       setEmojis(currentEmojis => {
         const newEmojis = contextEmojis.filter(newEmoji => 
+          newEmoji.image_url && // Ensure the emoji has an image URL
           !currentEmojis.some(existingEmoji => existingEmoji.id === newEmoji.id)
         );
         return [...newEmojis, ...currentEmojis];
