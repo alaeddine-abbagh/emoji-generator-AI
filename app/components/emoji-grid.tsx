@@ -108,8 +108,12 @@ export default function EmojiGrid() {
     if (!user) return;
 
     try {
+      console.log(`Toggling like for emoji ${emojiId}`);
       const emoji = emojis.find(e => e.id === emojiId);
-      if (!emoji) return;
+      if (!emoji) {
+        console.error(`Emoji with id ${emojiId} not found`);
+        return;
+      }
 
       const { data: existingLike, error: likeError } = await supabase
         .from('emoji_likes')
@@ -123,8 +127,10 @@ export default function EmojiGrid() {
       let newLikesCount = emoji.likes_count;
       let isLiked = emoji.is_liked_by_user;
 
+      console.log(`Current like status: ${isLiked}, Current likes count: ${newLikesCount}`);
+
       if (existingLike) {
-        // Unlike
+        console.log(`Unliking emoji ${emojiId}`);
         const { error: deleteError } = await supabase
           .from('emoji_likes')
           .delete()
@@ -135,7 +141,7 @@ export default function EmojiGrid() {
         newLikesCount--;
         isLiked = false;
       } else {
-        // Like
+        console.log(`Liking emoji ${emojiId}`);
         const { error: insertError } = await supabase
           .from('emoji_likes')
           .insert({ user_id: user.id, emoji_id: emojiId });
@@ -145,6 +151,7 @@ export default function EmojiGrid() {
         isLiked = true;
       }
 
+      console.log(`Updating emoji ${emojiId} with new likes count: ${newLikesCount}`);
       const { error: updateError } = await supabase
         .from('emojis')
         .update({ likes_count: newLikesCount })
@@ -152,13 +159,13 @@ export default function EmojiGrid() {
 
       if (updateError) throw updateError;
 
-      // Update the local state immediately for a responsive UI
+      console.log(`Updating local state for emoji ${emojiId}`);
       setEmojis(currentEmojis =>
         currentEmojis.map(e =>
           e.id === emojiId ? { ...e, likes_count: newLikesCount, is_liked_by_user: isLiked } : e
         )
       );
-      console.log(`Emoji ${emojiId} liked status updated to ${isLiked}`);
+      console.log(`Emoji ${emojiId} updated. New like status: ${isLiked}, New likes count: ${newLikesCount}`);
     } catch (error) {
       console.error('Error toggling like:', error);
     }
