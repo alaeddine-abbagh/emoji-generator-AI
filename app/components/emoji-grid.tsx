@@ -53,6 +53,9 @@ export default function EmojiGrid() {
       })
       .subscribe();
 
+    // Fetch emojis immediately when component mounts
+    fetchEmojis();
+
     return () => {
       supabase.removeChannel(channel);
     };
@@ -65,7 +68,11 @@ export default function EmojiGrid() {
           newEmoji.image_url && // Ensure the emoji has an image URL
           !currentEmojis.some(existingEmoji => existingEmoji.id === newEmoji.id)
         );
-        return [...newEmojis, ...currentEmojis];
+        // Combine new emojis with existing ones, removing duplicates
+        const combinedEmojis = [...newEmojis, ...currentEmojis];
+        return combinedEmojis.filter((emoji, index, self) =>
+          index === self.findIndex((t) => t.id === emoji.id)
+        );
       });
     }
   }, [contextEmojis]);
