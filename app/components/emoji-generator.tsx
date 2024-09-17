@@ -9,7 +9,7 @@ import { Loader2 } from 'lucide-react';
 export default function EmojiGenerator() {
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ message: string; details?: string } | null>(null);
   const { addEmoji } = useEmoji();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -26,12 +26,12 @@ export default function EmojiGenerator() {
         body: JSON.stringify({ prompt }),
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
       const data = await response.json();
       console.log("API response:", data);
+
+      if (!response.ok) {
+        throw new Error(data.error || `HTTP error! status: ${response.status}`);
+      }
 
       if (data.error) {
         throw new Error(data.error);
@@ -45,7 +45,14 @@ export default function EmojiGenerator() {
       setPrompt(''); // Clear the input after successful generation
     } catch (error) {
       console.error("Error generating emoji:", error);
-      setError(error instanceof Error ? error.message : "An unknown error occurred");
+      if (error instanceof Error) {
+        setError({ 
+          message: error.message, 
+          details: (error as any).details // Type assertion for potential 'details' property
+        });
+      } else {
+        setError({ message: "An unknown error occurred" });
+      }
     } finally {
       setIsGenerating(false);
     }
@@ -59,7 +66,7 @@ export default function EmojiGenerator() {
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           placeholder="Describe your emoji..."
-          className="flex-grow text-black" // Added text-black class
+          className="flex-grow text-black"
           disabled={isGenerating}
         />
         <Button 
@@ -77,7 +84,12 @@ export default function EmojiGenerator() {
           )}
         </Button>
       </form>
-      {error && <p className="text-red-500">{error}</p>}
+      {error && (
+        <div className="text-red-500">
+          <p>{error.message}</p>
+          {error.details && <p className="text-sm mt-1">{error.details}</p>}
+        </div>
+      )}
     </div>
   );
 }
