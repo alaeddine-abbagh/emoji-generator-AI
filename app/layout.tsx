@@ -31,8 +31,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       >
         <body className={`${geistSans.variable} ${geistMono.variable} font-sans`}>
           <EmojiProvider>
-            <Header />
-            <SignedIn>{children}</SignedIn>
+            <SignedIn>
+              <Header />
+              {children}
+            </SignedIn>
             <SignedOut>
               <RedirectToSignIn />
             </SignedOut>
