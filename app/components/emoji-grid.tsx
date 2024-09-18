@@ -64,36 +64,22 @@ export default function EmojiGrid() {
   const fetchEmojisWithLikes = async () => {
     if (!user) return;
     try {
-      const { data: emojisData, error: emojisError } = await supabase
-        .from('emojis')
-        .select(`
-          *,
-          likes_count: emoji_likes(count),
-          user_like: emoji_likes!inner(user_id)
-        `)
-        .eq('deleted', false)
-        .eq('emoji_likes.user_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (emojisError) throw emojisError;
-
       const { data: allEmojis, error: allEmojisError } = await supabase
         .from('emojis')
         .select(`
           *,
-          likes_count: emoji_likes(count)
+          likes_count: emoji_likes(count),
+          user_likes: emoji_likes!emoji_id(user_id)
         `)
         .eq('deleted', false)
         .order('created_at', { ascending: false });
 
       if (allEmojisError) throw allEmojisError;
 
-      const likedEmojiIds = new Set(emojisData.map(emoji => emoji.id));
-
       const emojisWithLikes = allEmojis.map(emoji => ({
         ...emoji,
         likes_count: emoji.likes_count[0]?.count || 0,
-        isLikedByUser: likedEmojiIds.has(emoji.id)
+        isLikedByUser: emoji.user_likes.some(like => like.user_id === user.id)
       }));
 
       setEmojis(emojisWithLikes);
