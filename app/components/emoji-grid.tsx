@@ -19,6 +19,7 @@ interface Emoji {
 
 export default function EmojiGrid() {
   const [emojis, setEmojis] = useState<Emoji[]>([]);
+  const [userLikes, setUserLikes] = useState<Set<number>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
   const { user } = useUser();
   const isAdmin = user?.primaryEmailAddress?.emailAddress === 'blodrena1@gmail.com';
@@ -26,6 +27,9 @@ export default function EmojiGrid() {
 
   useEffect(() => {
     fetchEmojis();
+    if (user) {
+      fetchUserLikes();
+    }
 
     const channel = supabase
       .channel('public:emojis_and_likes')
@@ -94,36 +98,65 @@ export default function EmojiGrid() {
     }
   };
 
+  const fetchUserLikes = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('emoji_likes')
+        .select('emoji_id')
+        .eq('user_id', user!.id);
+
+      if (error) throw error;
+
+      setUserLikes(new Set(data.map(like => like.emoji_id)));
+    } catch (error) {
+      console.error('Error fetching user likes:', error);
+    }
+  };
+
   const handleLike = async (emojiId: number) => {
     if (!user) return;
 
     try {
       console.log(`Attempting to like/unlike emoji ${emojiId}`);
-      const { data, error } = await supabase
-        .from('emoji_likes')
-        .insert({ user_id: user.id, emoji_id: emojiId })
-        .select();
+      const isLiked = userLikes.has(emojiId);
 
-      if (error) {
-        if (error.code === '23505') { // Unique violation error code
-          console.log(`User has already liked emoji ${emojiId}. Unliking...`);
-          const { error: deleteError } = await supabase
-            .from('emoji_likes')
-            .delete()
-            .eq('user_id', user.id)
-            .eq('emoji_id', emojiId);
-          
-          if (deleteError) {
-            throw deleteError;
-          }
-          console.log(`Successfully unliked emoji ${emojiId}`);
-        } else {
-          throw error;
-        }
+      if (isLiked) {
+        // Unlike
+        const { error: deleteError } = await supabase
+          .from('emoji_likes')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('emoji_id', emojiId);
+
+        if (deleteError) throw deleteError;
+
+        setUserLikes(prevLikes => {
+          const newLikes = new Set(prevLikes);
+          newLikes.delete(emojiId);
+          return newLikes;
+        });
+        setEmojis(prevEmojis =>
+          prevEmojis.map(emoji =>
+            emoji.id === emojiId ? { ...emoji, likes_count: emoji.likes_count - 1 } : emoji
+          )
+        );
+        console.log(`Successfully unliked emoji ${emojiId}`);
       } else {
+        // Like
+        const { error } = await supabase
+          .from('emoji_likes')
+          .insert({ user_id: user.id, emoji_id: emojiId });
+
+        if (error) throw error;
+
+        setUserLikes(prevLikes => new Set(prevLikes).add(emojiId));
+        setEmojis(prevEmojis =>
+          prevEmojis.map(emoji =>
+            emoji.id === emojiId ? { ...emoji, likes_count: emoji.likes_count + 1 } : emoji
+          )
+        );
         console.log(`Successfully liked emoji ${emojiId}`);
       }
-      // The UI will be updated by the real-time subscription
     } catch (error) {
       console.error('Error handling like:', error);
     }
@@ -192,10 +225,10 @@ export default function EmojiGrid() {
                 <Button
                   size="icon"
                   variant="ghost"
-                  className="text-white hover:text-purple-300"
+                  className={`text-white hover:text-purple-300 ${userLikes.has(emoji.id) ? 'text-purple-300' : ''}`}
                   onClick={() => handleLike(emoji.id)}
                 >
-                  <Heart className="h-6 w-6" />
+                  <Heart className={`h-6 w-6 ${userLikes.has(emoji.id) ? 'fill-current' : ''}`} />
                 </Button>
                 <Button
                   size="icon"
