@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import { EmojiProvider } from "./contexts/emoji-context";
-import { ClerkProvider } from "@clerk/nextjs";
+import { ClerkProvider, SignedIn, SignedOut, RedirectToSignIn } from "@clerk/nextjs";
 import Header from "./components/Header";
 
 const geistSans = localFont({
@@ -24,11 +24,18 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <ClerkProvider publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}>
+      <ClerkProvider
+        publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+        afterSignInUrl="/"
+        afterSignUpUrl="/"
+      >
         <body className={`${geistSans.variable} ${geistMono.variable} font-sans`}>
           <EmojiProvider>
             <Header />
-            {children}
+            <SignedIn>{children}</SignedIn>
+            <SignedOut>
+              <RedirectToSignIn />
+            </SignedOut>
           </EmojiProvider>
         </body>
       </ClerkProvider>
