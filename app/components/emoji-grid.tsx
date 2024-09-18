@@ -99,15 +99,27 @@ export default function EmojiGrid() {
   };
 
   const fetchUserLikes = async () => {
+    if (!user) return;
     try {
       const { data, error } = await supabase
         .from('emoji_likes')
         .select('emoji_id')
-        .eq('user_id', user!.id);
+        .eq('user_id', user.id);
 
       if (error) throw error;
 
-      setUserLikes(new Set(data.map(like => like.emoji_id)));
+      const likedEmojiIds = new Set(data.map(like => like.emoji_id));
+      setUserLikes(likedEmojiIds);
+      
+      // Update the emojis state to reflect the user's likes
+      setEmojis(currentEmojis => 
+        currentEmojis.map(emoji => ({
+          ...emoji,
+          isLikedByUser: likedEmojiIds.has(emoji.id)
+        }))
+      );
+
+      console.log('User likes fetched and applied:', likedEmojiIds);
     } catch (error) {
       console.error('Error fetching user likes:', error);
     }
@@ -137,7 +149,9 @@ export default function EmojiGrid() {
         });
         setEmojis(prevEmojis =>
           prevEmojis.map(emoji =>
-            emoji.id === emojiId ? { ...emoji, likes_count: emoji.likes_count - 1 } : emoji
+            emoji.id === emojiId 
+              ? { ...emoji, likes_count: emoji.likes_count - 1, isLikedByUser: false } 
+              : emoji
           )
         );
         console.log(`Successfully unliked emoji ${emojiId}`);
@@ -152,7 +166,9 @@ export default function EmojiGrid() {
         setUserLikes(prevLikes => new Set(prevLikes).add(emojiId));
         setEmojis(prevEmojis =>
           prevEmojis.map(emoji =>
-            emoji.id === emojiId ? { ...emoji, likes_count: emoji.likes_count + 1 } : emoji
+            emoji.id === emojiId 
+              ? { ...emoji, likes_count: emoji.likes_count + 1, isLikedByUser: true } 
+              : emoji
           )
         );
         console.log(`Successfully liked emoji ${emojiId}`);
@@ -225,10 +241,10 @@ export default function EmojiGrid() {
                 <Button
                   size="icon"
                   variant="ghost"
-                  className={`text-white hover:text-purple-300 ${userLikes.has(emoji.id) ? 'text-purple-300' : ''}`}
+                  className={`text-white hover:text-purple-300 ${emoji.isLikedByUser ? 'text-purple-300' : ''}`}
                   onClick={() => handleLike(emoji.id)}
                 >
-                  <Heart className={`h-6 w-6 ${userLikes.has(emoji.id) ? 'fill-current' : ''}`} />
+                  <Heart className={`h-6 w-6 ${emoji.isLikedByUser ? 'fill-current' : ''}`} />
                 </Button>
                 <Button
                   size="icon"
