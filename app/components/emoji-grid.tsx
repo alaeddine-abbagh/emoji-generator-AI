@@ -15,11 +15,11 @@ interface Emoji {
   likes_count: number;
   creator_user_id: string;
   deleted: boolean;
+  isLikedByUser: boolean;
 }
 
 export default function EmojiGrid() {
   const [emojis, setEmojis] = useState<Emoji[]>([]);
-  const [userLikes, setUserLikes] = useState<Set<number>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
   const { user } = useUser();
   const isAdmin = user?.primaryEmailAddress?.emailAddress === 'blodrena1@gmail.com';
@@ -27,9 +27,10 @@ export default function EmojiGrid() {
 
   useEffect(() => {
     const fetchData = async () => {
-      await fetchEmojisWithLikes();
       if (user) {
-        await fetchUserLikes();
+        await fetchEmojisWithLikes();
+      } else {
+        await fetchEmojisWithoutLikes();
       }
     };
 
@@ -61,12 +62,56 @@ export default function EmojiGrid() {
   }, [contextEmojis, user]);
 
   const fetchEmojisWithLikes = async () => {
+    if (!user) return;
+    try {
+      const { data: emojisData, error: emojisError } = await supabase
+        .from('emojis')
+        .select(`
+          *,
+          likes_count: emoji_likes(count),
+          user_like: emoji_likes!inner(user_id)
+        `)
+        .eq('deleted', false)
+        .eq('emoji_likes.user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (emojisError) throw emojisError;
+
+      const { data: allEmojis, error: allEmojisError } = await supabase
+        .from('emojis')
+        .select(`
+          *,
+          likes_count: emoji_likes(count)
+        `)
+        .eq('deleted', false)
+        .order('created_at', { ascending: false });
+
+      if (allEmojisError) throw allEmojisError;
+
+      const likedEmojiIds = new Set(emojisData.map(emoji => emoji.id));
+
+      const emojisWithLikes = allEmojis.map(emoji => ({
+        ...emoji,
+        likes_count: emoji.likes_count[0]?.count || 0,
+        isLikedByUser: likedEmojiIds.has(emoji.id)
+      }));
+
+      setEmojis(emojisWithLikes);
+      console.log('Emojis with likes fetched:', emojisWithLikes);
+    } catch (error) {
+      console.error('Error fetching emojis with likes:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchEmojisWithoutLikes = async () => {
     try {
       const { data, error } = await supabase
         .from('emojis')
         .select(`
           *,
-          emoji_likes: emoji_likes(count)
+          likes_count: emoji_likes(count)
         `)
         .eq('deleted', false)
         .order('created_at', { ascending: false });
@@ -75,47 +120,21 @@ export default function EmojiGrid() {
 
       const emojisWithLikes = data.map(emoji => ({
         ...emoji,
-        likes_count: emoji.emoji_likes[0]?.count || 0,
-        isLikedByUser: false // We'll update this in fetchUserLikes
+        likes_count: emoji.likes_count[0]?.count || 0,
+        isLikedByUser: false
       }));
 
       setEmojis(emojisWithLikes);
     } catch (error) {
-      console.error('Error fetching emojis with likes:', error);
+      console.error('Error fetching emojis without likes:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const fetchUserLikes = async () => {
-    if (!user) return;
-    try {
-      const { data, error } = await supabase
-        .from('emoji_likes')
-        .select('emoji_id')
-        .eq('user_id', user.id);
-
-      if (error) throw error;
-
-      const likedEmojiIds = new Set(data.map(like => like.emoji_id));
-      setUserLikes(likedEmojiIds);
-      
-      setEmojis(currentEmojis => 
-        currentEmojis.map(emoji => ({
-          ...emoji,
-          isLikedByUser: likedEmojiIds.has(emoji.id)
-        }))
-      );
-
-      console.log('User likes fetched and applied:', likedEmojiIds);
-    } catch (error) {
-      console.error('Error fetching user likes:', error);
-    }
-  };
-
   const handleEmojiChange = (payload: any) => {
     if (payload.eventType === 'INSERT' && !(payload.new as Emoji).deleted) {
-      setEmojis(currentEmojis => [{ ...payload.new, likes_count: 0 } as Emoji, ...currentEmojis]);
+      setEmojis(currentEmojis => [{ ...payload.new, likes_count: 0, isLikedByUser: false } as Emoji, ...currentEmojis]);
     } else if (payload.eventType === 'UPDATE') {
       setEmojis(currentEmojis => 
         currentEmojis.map(emoji => 
@@ -129,9 +148,9 @@ export default function EmojiGrid() {
     }
   };
 
-  const handleLikeChange = (payload: any) => {
+  const handleLikeChange = async (payload: any) => {
     const emojiId = payload.new?.emoji_id || payload.old?.emoji_id;
-    fetchEmojisWithLikes();  // Refetch all emojis with updated like counts
+    await fetchEmojisWithLikes();
   };
 
   const handleLike = async (emojiId: number) => {
@@ -139,28 +158,21 @@ export default function EmojiGrid() {
 
     try {
       console.log(`Attempting to like/unlike emoji ${emojiId}`);
-      const isLiked = userLikes.has(emojiId);
+      const emoji = emojis.find(e => e.id === emojiId);
+      if (!emoji) return;
 
-      // Immediately update local state
-      setUserLikes(prevLikes => {
-        const newLikes = new Set(prevLikes);
-        if (isLiked) {
-          newLikes.delete(emojiId);
-        } else {
-          newLikes.add(emojiId);
-        }
-        return newLikes;
-      });
+      const isLiked = emoji.isLikedByUser;
 
+      // Optimistically update local state
       setEmojis(prevEmojis =>
-        prevEmojis.map(emoji =>
-          emoji.id === emojiId
+        prevEmojis.map(e =>
+          e.id === emojiId
             ? {
-                ...emoji,
-                likes_count: isLiked ? emoji.likes_count - 1 : emoji.likes_count + 1,
+                ...e,
+                likes_count: isLiked ? Math.max(0, e.likes_count - 1) : e.likes_count + 1,
                 isLikedByUser: !isLiked
               }
-            : emoji
+            : e
         )
       );
 
@@ -186,11 +198,14 @@ export default function EmojiGrid() {
           console.log(`Successfully liked emoji ${emojiId}`);
         }
       }
+
+      // Fetch the updated emoji data
+      await fetchEmojisWithLikes();
+
     } catch (error) {
       console.error('Error handling like:', error);
       // Revert local state if there's an error
       await fetchEmojisWithLikes();
-      await fetchUserLikes();
     }
   };
 
