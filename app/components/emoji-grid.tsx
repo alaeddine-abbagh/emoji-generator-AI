@@ -157,21 +157,24 @@ export default function EmojiGrid() {
         console.log(`Successfully unliked emoji ${emojiId}`);
       } else {
         // Like
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('emoji_likes')
-          .insert({ user_id: user.id, emoji_id: emojiId });
+          .upsert({ user_id: user.id, emoji_id: emojiId }, { onConflict: 'user_id,emoji_id' })
+          .select();
 
         if (error) throw error;
 
-        setUserLikes(prevLikes => new Set(prevLikes).add(emojiId));
-        setEmojis(prevEmojis =>
-          prevEmojis.map(emoji =>
-            emoji.id === emojiId 
-              ? { ...emoji, likes_count: emoji.likes_count + 1, isLikedByUser: true } 
-              : emoji
-          )
-        );
-        console.log(`Successfully liked emoji ${emojiId}`);
+        if (data && data.length > 0) {
+          setUserLikes(prevLikes => new Set(prevLikes).add(emojiId));
+          setEmojis(prevEmojis =>
+            prevEmojis.map(emoji =>
+              emoji.id === emojiId 
+                ? { ...emoji, likes_count: emoji.likes_count + 1, isLikedByUser: true } 
+                : emoji
+            )
+          );
+          console.log(`Successfully liked emoji ${emojiId}`);
+        }
       }
     } catch (error) {
       console.error('Error handling like:', error);
