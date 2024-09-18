@@ -15,6 +15,7 @@ interface Emoji {
   likes_count: number;
   creator_user_id: string;
   is_liked_by_user?: boolean;
+  deleted: boolean;
 }
 
 export default function EmojiGrid() {
@@ -31,7 +32,7 @@ export default function EmojiGrid() {
     const channel = supabase
       .channel('public:emojis')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'emojis' }, payload => {
-        if (payload.eventType === 'INSERT') {
+        if (payload.eventType === 'INSERT' && !(payload.new as Emoji).deleted) {
           setEmojis(currentEmojis => {
             const newEmoji = payload.new as Emoji;
             if (!currentEmojis.some(emoji => emoji.id === newEmoji.id)) {
@@ -41,9 +42,13 @@ export default function EmojiGrid() {
           });
         } else if (payload.eventType === 'UPDATE') {
           setEmojis(currentEmojis => 
-            currentEmojis.map(emoji => 
-              emoji.id === payload.new.id ? { ...emoji, ...payload.new as Emoji } : emoji
-            )
+            currentEmojis.map(emoji => {
+              if (emoji.id === payload.new.id) {
+                const updatedEmoji = { ...emoji, ...payload.new as Emoji };
+                return updatedEmoji.deleted ? null : updatedEmoji;
+              }
+              return emoji;
+            }).filter((emoji): emoji is Emoji => emoji !== null)
           );
         } else if (payload.eventType === 'DELETE') {
           setEmojis(currentEmojis => 
@@ -82,6 +87,7 @@ export default function EmojiGrid() {
       const { data, error } = await supabase
         .from('emojis')
         .select('*')
+        .eq('deleted', false)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
