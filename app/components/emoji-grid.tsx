@@ -46,21 +46,21 @@ export default function EmojiGrid() {
       })
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
-
-  useEffect(() => {
+    // Handle context emojis
     if (contextEmojis.length > 0) {
       setEmojis(currentEmojis => {
         const newEmojis = contextEmojis.filter(newEmoji => 
           newEmoji.image_url && 
-          !currentEmojis.some(existingEmoji => existingEmoji.id === newEmoji.id)
+          !currentEmojis.some(existingEmoji => existingEmoji.id === newEmoji.id) &&
+          !newEmoji.deleted
         );
         return [...newEmojis, ...currentEmojis];
       });
     }
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [contextEmojis]);
 
   const fetchEmojis = async () => {
