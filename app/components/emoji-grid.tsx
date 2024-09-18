@@ -1,12 +1,12 @@
 "use client";
 
-import Image from "next/image";
-import { Heart, Download, Trash2 } from "lucide-react";
-import { Button } from "../../components/ui/button";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useUser } from "@clerk/nextjs";
 import { useEmoji } from '../contexts/emoji-context';
+import Image from "next/image";
+import { Heart, Download, Trash2 } from "lucide-react";
+import { Button } from "../../components/ui/button";
 
 interface Emoji {
   id: number;
@@ -14,7 +14,6 @@ interface Emoji {
   prompt: string;
   likes_count: number;
   creator_user_id: string;
-  is_liked_by_user?: boolean;
   deleted: boolean;
 }
 
@@ -28,27 +27,16 @@ export default function EmojiGrid() {
   useEffect(() => {
     fetchEmojis();
 
-    // Set up real-time listener
     const channel = supabase
       .channel('public:emojis')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'emojis' }, payload => {
         if (payload.eventType === 'INSERT' && !(payload.new as Emoji).deleted) {
-          setEmojis(currentEmojis => {
-            const newEmoji = payload.new as Emoji;
-            if (!currentEmojis.some(emoji => emoji.id === newEmoji.id)) {
-              return [newEmoji, ...currentEmojis];
-            }
-            return currentEmojis;
-          });
+          setEmojis(currentEmojis => [payload.new as Emoji, ...currentEmojis]);
         } else if (payload.eventType === 'UPDATE') {
           setEmojis(currentEmojis => 
-            currentEmojis.map(emoji => {
-              if (emoji.id === payload.new.id) {
-                const updatedEmoji = { ...emoji, ...payload.new as Emoji };
-                return updatedEmoji.deleted ? null : updatedEmoji;
-              }
-              return emoji;
-            }).filter((emoji): emoji is Emoji => emoji !== null)
+            currentEmojis.map(emoji => 
+              emoji.id === payload.new.id ? { ...emoji, ...payload.new as Emoji } : emoji
+            ).filter(emoji => !emoji.deleted)
           );
         } else if (payload.eventType === 'DELETE') {
           setEmojis(currentEmojis => 
@@ -57,9 +45,6 @@ export default function EmojiGrid() {
         }
       })
       .subscribe();
-
-    // Fetch emojis immediately when component mounts
-    fetchEmojis();
 
     return () => {
       supabase.removeChannel(channel);
@@ -70,14 +55,10 @@ export default function EmojiGrid() {
     if (contextEmojis.length > 0) {
       setEmojis(currentEmojis => {
         const newEmojis = contextEmojis.filter(newEmoji => 
-          newEmoji.image_url && // Ensure the emoji has an image URL
+          newEmoji.image_url && 
           !currentEmojis.some(existingEmoji => existingEmoji.id === newEmoji.id)
         );
-        // Combine new emojis with existing ones, removing duplicates
-        const combinedEmojis = [...newEmojis, ...currentEmojis];
-        return combinedEmojis.filter((emoji, index, self) =>
-          index === self.findIndex((t) => t.id === emoji.id)
-        );
+        return [...newEmojis, ...currentEmojis];
       });
     }
   }, [contextEmojis]);
@@ -92,25 +73,7 @@ export default function EmojiGrid() {
 
       if (error) throw error;
 
-      if (user) {
-        const { data: likes, error: likesError } = await supabase
-          .from('emoji_likes')
-          .select('emoji_id')
-          .eq('user_id', user.id);
-
-        if (likesError) throw likesError;
-
-        const likedEmojiIds = new Set(likes.map(like => like.emoji_id));
-
-        const emojisWithLikeStatus = data.map(emoji => ({
-          ...emoji,
-          is_liked_by_user: likedEmojiIds.has(emoji.id)
-        }));
-
-        setEmojis(emojisWithLikeStatus);
-      } else {
-        setEmojis(data.map(emoji => ({ ...emoji, is_liked_by_user: false })));
-      }
+      setEmojis(data);
     } catch (error) {
       console.error('Error fetching emojis:', error);
     } finally {
@@ -118,70 +81,42 @@ export default function EmojiGrid() {
     }
   };
 
-  const toggleLike = async (emojiId: number) => {
+  const handleLike = async (emojiId: number) => {
     if (!user) return;
 
     try {
-      console.log(`Toggling like for emoji ${emojiId}`);
-      const emoji = emojis.find(e => e.id === emojiId);
-      if (!emoji) {
-        console.error(`Emoji with id ${emojiId} not found`);
-        return;
-      }
-
-      const { data: existingLike, error: likeError } = await supabase
+      const { data, error } = await supabase
         .from('emoji_likes')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('emoji_id', emojiId)
-        .single();
+        .insert({ user_id: user.id, emoji_id: emojiId })
+        .select();
 
-      if (likeError && likeError.code !== 'PGRST116') throw likeError;
+      if (error) {
+        if (error.code === '23505') { // Unique violation error code
+          // User has already liked this emoji, so we'll unlike it
+          await supabase
+            .from('emoji_likes')
+            .delete()
+            .eq('user_id', user.id)
+            .eq('emoji_id', emojiId);
 
-      let newLikesCount = emoji.likes_count;
-      let isLiked = emoji.is_liked_by_user;
-
-      console.log(`Current like status: ${isLiked}, Current likes count: ${newLikesCount}`);
-
-      if (existingLike) {
-        console.log(`Unliking emoji ${emojiId}`);
-        const { error: deleteError } = await supabase
-          .from('emoji_likes')
-          .delete()
-          .eq('user_id', user.id)
-          .eq('emoji_id', emojiId);
-
-        if (deleteError) throw deleteError;
-        newLikesCount--;
-        isLiked = false;
+          setEmojis(currentEmojis =>
+            currentEmojis.map(emoji =>
+              emoji.id === emojiId ? { ...emoji, likes_count: emoji.likes_count - 1 } : emoji
+            )
+          );
+        } else {
+          throw error;
+        }
       } else {
-        console.log(`Liking emoji ${emojiId}`);
-        const { error: insertError } = await supabase
-          .from('emoji_likes')
-          .insert({ user_id: user.id, emoji_id: emojiId });
-
-        if (insertError) throw insertError;
-        newLikesCount++;
-        isLiked = true;
+        // Like was successful
+        setEmojis(currentEmojis =>
+          currentEmojis.map(emoji =>
+            emoji.id === emojiId ? { ...emoji, likes_count: emoji.likes_count + 1 } : emoji
+          )
+        );
       }
-
-      console.log(`Updating emoji ${emojiId} with new likes count: ${newLikesCount}`);
-      const { error: updateError } = await supabase
-        .from('emojis')
-        .update({ likes_count: newLikesCount })
-        .eq('id', emojiId);
-
-      if (updateError) throw updateError;
-
-      console.log(`Updating local state for emoji ${emojiId}`);
-      setEmojis(currentEmojis =>
-        currentEmojis.map(e =>
-          e.id === emojiId ? { ...e, likes_count: newLikesCount, is_liked_by_user: isLiked } : e
-        )
-      );
-      console.log(`Emoji ${emojiId} updated. New like status: ${isLiked}, New likes count: ${newLikesCount}`);
     } catch (error) {
-      console.error('Error toggling like:', error);
+      console.error('Error handling like:', error);
     }
   };
 
@@ -191,7 +126,7 @@ export default function EmojiGrid() {
     try {
       const { error } = await supabase
         .from('emojis')
-        .delete()
+        .update({ deleted: true })
         .eq('id', emojiId);
 
       if (error) throw error;
@@ -249,12 +184,9 @@ export default function EmojiGrid() {
                   size="icon"
                   variant="ghost"
                   className="text-white hover:text-purple-300"
-                  onClick={() => toggleLike(emoji.id)}
+                  onClick={() => handleLike(emoji.id)}
                 >
-                  <Heart 
-                    className={`h-6 w-6 ${emoji.is_liked_by_user ? 'fill-current text-red-500' : ''}`} 
-                    fill={emoji.is_liked_by_user ? 'currentColor' : 'none'}
-                  />
+                  <Heart className="h-6 w-6" />
                 </Button>
                 <Button
                   size="icon"
