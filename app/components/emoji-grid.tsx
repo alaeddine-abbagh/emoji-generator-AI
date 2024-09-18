@@ -26,10 +26,14 @@ export default function EmojiGrid() {
   const { emojis: contextEmojis, addEmoji } = useEmoji();
 
   useEffect(() => {
-    fetchEmojisWithLikes();
-    if (user) {
-      fetchUserLikes();
-    }
+    const fetchData = async () => {
+      await fetchEmojisWithLikes();
+      if (user) {
+        await fetchUserLikes();
+      }
+    };
+
+    fetchData();
 
     const channel = supabase
       .channel('public:emojis_and_likes')
@@ -71,7 +75,8 @@ export default function EmojiGrid() {
 
       const emojisWithLikes = data.map(emoji => ({
         ...emoji,
-        likes_count: emoji.emoji_likes[0]?.count || 0
+        likes_count: emoji.emoji_likes[0]?.count || 0,
+        isLikedByUser: false // We'll update this in fetchUserLikes
       }));
 
       setEmojis(emojisWithLikes);
@@ -136,6 +141,29 @@ export default function EmojiGrid() {
       console.log(`Attempting to like/unlike emoji ${emojiId}`);
       const isLiked = userLikes.has(emojiId);
 
+      // Immediately update local state
+      setUserLikes(prevLikes => {
+        const newLikes = new Set(prevLikes);
+        if (isLiked) {
+          newLikes.delete(emojiId);
+        } else {
+          newLikes.add(emojiId);
+        }
+        return newLikes;
+      });
+
+      setEmojis(prevEmojis =>
+        prevEmojis.map(emoji =>
+          emoji.id === emojiId
+            ? {
+                ...emoji,
+                likes_count: isLiked ? emoji.likes_count - 1 : emoji.likes_count + 1,
+                isLikedByUser: !isLiked
+              }
+            : emoji
+        )
+      );
+
       if (isLiked) {
         // Unlike
         const { error: deleteError } = await supabase
@@ -145,19 +173,6 @@ export default function EmojiGrid() {
           .eq('emoji_id', emojiId);
 
         if (deleteError) throw deleteError;
-
-        setUserLikes(prevLikes => {
-          const newLikes = new Set(prevLikes);
-          newLikes.delete(emojiId);
-          return newLikes;
-        });
-        setEmojis(prevEmojis =>
-          prevEmojis.map(emoji =>
-            emoji.id === emojiId 
-              ? { ...emoji, likes_count: emoji.likes_count - 1, isLikedByUser: false } 
-              : emoji
-          )
-        );
         console.log(`Successfully unliked emoji ${emojiId}`);
       } else {
         // Like
@@ -167,21 +182,15 @@ export default function EmojiGrid() {
           .select();
 
         if (error) throw error;
-
         if (data && data.length > 0) {
-          setUserLikes(prevLikes => new Set(prevLikes).add(emojiId));
-          setEmojis(prevEmojis =>
-            prevEmojis.map(emoji =>
-              emoji.id === emojiId 
-                ? { ...emoji, likes_count: emoji.likes_count + 1, isLikedByUser: true } 
-                : emoji
-            )
-          );
           console.log(`Successfully liked emoji ${emojiId}`);
         }
       }
     } catch (error) {
       console.error('Error handling like:', error);
+      // Revert local state if there's an error
+      await fetchEmojisWithLikes();
+      await fetchUserLikes();
     }
   };
 
