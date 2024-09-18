@@ -50,12 +50,14 @@ export default function EmojiGrid() {
           const change = payload.eventType === 'INSERT' ? 1 : -1;
           setEmojis(currentEmojis =>
             currentEmojis.map(emoji =>
-              emoji.id === emojiId ? { ...emoji, likes_count: emoji.likes_count + change } : emoji
+              emoji.id === emojiId ? { ...emoji, likes_count: (emoji.likes_count || 0) + change } : emoji
             )
           );
         }
       })
       .subscribe();
+
+    console.log('Subscribed to real-time changes');
 
     // Handle context emojis
     if (contextEmojis.length > 0) {
@@ -96,6 +98,7 @@ export default function EmojiGrid() {
     if (!user) return;
 
     try {
+      console.log(`Attempting to like/unlike emoji ${emojiId}`);
       const { data, error } = await supabase
         .from('emoji_likes')
         .insert({ user_id: user.id, emoji_id: emojiId })
@@ -103,15 +106,22 @@ export default function EmojiGrid() {
 
       if (error) {
         if (error.code === '23505') { // Unique violation error code
-          // User has already liked this emoji, so we'll unlike it
-          await supabase
+          console.log(`User has already liked emoji ${emojiId}. Unliking...`);
+          const { error: deleteError } = await supabase
             .from('emoji_likes')
             .delete()
             .eq('user_id', user.id)
             .eq('emoji_id', emojiId);
+          
+          if (deleteError) {
+            throw deleteError;
+          }
+          console.log(`Successfully unliked emoji ${emojiId}`);
         } else {
           throw error;
         }
+      } else {
+        console.log(`Successfully liked emoji ${emojiId}`);
       }
       // The UI will be updated by the real-time subscription
     } catch (error) {
