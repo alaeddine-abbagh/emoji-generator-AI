@@ -69,7 +69,7 @@ export default function EmojiGrid() {
           *,
           likes_count: emoji_likes(count)
         `)
-        .eq('deleted', false)
+        .is('deleted', null)
         .order('created_at', { ascending: false });
 
       if (allEmojisError) throw allEmojisError;
@@ -108,7 +108,7 @@ export default function EmojiGrid() {
           *,
           likes_count: emoji_likes(count)
         `)
-        .eq('deleted', false)
+        .is('deleted', null)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -204,40 +204,24 @@ export default function EmojiGrid() {
     }
   };
 
-  const handleDelete = async (emojiId: number, imageUrl: string) => {
+  const handleDelete = async (emojiId: number) => {
     if (!isAdmin) return;
 
     try {
-      // Delete from emoji_likes table
-      const { error: likesError } = await supabase
-        .from('emoji_likes')
-        .delete()
-        .eq('emoji_id', emojiId);
-
-      if (likesError) throw likesError;
-
-      // Delete from emojis table
+      // Mark emoji as deleted
       const { error: emojiError } = await supabase
         .from('emojis')
-        .delete()
+        .update({ deleted: new Date().toISOString() })
         .eq('id', emojiId);
 
       if (emojiError) throw emojiError;
 
-      // Delete from storage
-      const imagePath = imageUrl.replace(supabase.supabaseUrl + '/storage/v1/object/public/', '');
-      const { error: storageError } = await supabase.storage
-        .from('emojis')
-        .remove([imagePath]);
-
-      if (storageError) throw storageError;
-
-      console.log('Emoji deleted successfully');
+      console.log('Emoji marked as deleted successfully');
 
       // Update local state
       setEmojis(currentEmojis => currentEmojis.filter(emoji => emoji.id !== emojiId));
     } catch (error) {
-      console.error('Error deleting emoji:', error);
+      console.error('Error marking emoji as deleted:', error);
     }
   };
 
@@ -305,7 +289,7 @@ export default function EmojiGrid() {
                     size="icon"
                     variant="ghost"
                     className="text-white hover:text-red-300"
-                    onClick={() => handleDelete(emoji.id, emoji.image_url)}
+                    onClick={() => handleDelete(emoji.id)}
                   >
                     <Trash2 className="h-6 w-6" />
                   </Button>
