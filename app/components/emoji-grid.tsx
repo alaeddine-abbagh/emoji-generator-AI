@@ -69,7 +69,7 @@ export default function EmojiGrid() {
         .select(`
           *,
           likes_count: emoji_likes(count),
-          user_likes: emoji_likes!emoji_id(user_id)
+          user_likes: emoji_likes!left(user_id)
         `)
         .eq('deleted', false)
         .order('created_at', { ascending: false });
