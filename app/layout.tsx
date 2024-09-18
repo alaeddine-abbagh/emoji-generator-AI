@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import { EmojiProvider } from "./contexts/emoji-context";
+import { ClerkProvider } from "@clerk/nextjs";
+import Header from "./components/Header";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -22,11 +24,14 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body>
-        <EmojiProvider>
-          {children}
-        </EmojiProvider>
-      </body>
+      <ClerkProvider publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}>
+        <body className={`${geistSans.variable} ${geistMono.variable} font-sans`}>
+          <EmojiProvider>
+            <Header />
+            {children}
+          </EmojiProvider>
+        </body>
+      </ClerkProvider>
     </html>
   );
 }
