@@ -26,39 +26,15 @@ export default function EmojiGrid() {
   const { emojis: contextEmojis, addEmoji } = useEmoji();
 
   useEffect(() => {
-    fetchEmojis();
+    fetchEmojisWithLikes();
     if (user) {
       fetchUserLikes();
     }
 
     const channel = supabase
       .channel('public:emojis_and_likes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'emojis' }, payload => {
-        if (payload.eventType === 'INSERT' && !(payload.new as Emoji).deleted) {
-          setEmojis(currentEmojis => [payload.new as Emoji, ...currentEmojis]);
-        } else if (payload.eventType === 'UPDATE') {
-          setEmojis(currentEmojis => 
-            currentEmojis.map(emoji => 
-              emoji.id === payload.new.id ? { ...emoji, ...payload.new as Emoji } : emoji
-            ).filter(emoji => !emoji.deleted)
-          );
-        } else if (payload.eventType === 'DELETE') {
-          setEmojis(currentEmojis => 
-            currentEmojis.filter(emoji => emoji.id !== payload.old.id)
-          );
-        }
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'emoji_likes' }, payload => {
-        if (payload.eventType === 'INSERT' || payload.eventType === 'DELETE') {
-          const emojiId = payload.new?.emoji_id || payload.old?.emoji_id;
-          const change = payload.eventType === 'INSERT' ? 1 : -1;
-          setEmojis(currentEmojis =>
-            currentEmojis.map(emoji =>
-              emoji.id === emojiId ? { ...emoji, likes_count: (emoji.likes_count || 0) + change } : emoji
-            )
-          );
-        }
-      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'emojis' }, handleEmojiChange)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'emoji_likes' }, handleLikeChange)
       .subscribe();
 
     console.log('Subscribed to real-time changes');
@@ -78,21 +54,29 @@ export default function EmojiGrid() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [contextEmojis]);
+  }, [contextEmojis, user]);
 
-  const fetchEmojis = async () => {
+  const fetchEmojisWithLikes = async () => {
     try {
       const { data, error } = await supabase
         .from('emojis')
-        .select('*')
+        .select(`
+          *,
+          emoji_likes: emoji_likes(count)
+        `)
         .eq('deleted', false)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
 
-      setEmojis(data);
+      const emojisWithLikes = data.map(emoji => ({
+        ...emoji,
+        likes_count: emoji.emoji_likes[0]?.count || 0
+      }));
+
+      setEmojis(emojisWithLikes);
     } catch (error) {
-      console.error('Error fetching emojis:', error);
+      console.error('Error fetching emojis with likes:', error);
     } finally {
       setIsLoading(false);
     }
@@ -111,7 +95,6 @@ export default function EmojiGrid() {
       const likedEmojiIds = new Set(data.map(like => like.emoji_id));
       setUserLikes(likedEmojiIds);
       
-      // Update the emojis state to reflect the user's likes
       setEmojis(currentEmojis => 
         currentEmojis.map(emoji => ({
           ...emoji,
@@ -123,6 +106,27 @@ export default function EmojiGrid() {
     } catch (error) {
       console.error('Error fetching user likes:', error);
     }
+  };
+
+  const handleEmojiChange = (payload: any) => {
+    if (payload.eventType === 'INSERT' && !(payload.new as Emoji).deleted) {
+      setEmojis(currentEmojis => [{ ...payload.new, likes_count: 0 } as Emoji, ...currentEmojis]);
+    } else if (payload.eventType === 'UPDATE') {
+      setEmojis(currentEmojis => 
+        currentEmojis.map(emoji => 
+          emoji.id === payload.new.id ? { ...emoji, ...payload.new as Emoji } : emoji
+        ).filter(emoji => !emoji.deleted)
+      );
+    } else if (payload.eventType === 'DELETE') {
+      setEmojis(currentEmojis => 
+        currentEmojis.filter(emoji => emoji.id !== payload.old.id)
+      );
+    }
+  };
+
+  const handleLikeChange = (payload: any) => {
+    const emojiId = payload.new?.emoji_id || payload.old?.emoji_id;
+    fetchEmojisWithLikes();  // Refetch all emojis with updated like counts
   };
 
   const handleLike = async (emojiId: number) => {
