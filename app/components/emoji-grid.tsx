@@ -208,15 +208,31 @@ export default function EmojiGrid() {
     if (!isAdmin) return;
 
     try {
-      // Start a Supabase transaction
-      const { data, error } = await supabase.rpc('delete_emoji', {
-        p_emoji_id: emojiId,
-        p_image_url: imageUrl
-      });
+      // Delete from emoji_likes table
+      const { error: likesError } = await supabase
+        .from('emoji_likes')
+        .delete()
+        .eq('emoji_id', emojiId);
 
-      if (error) throw error;
+      if (likesError) throw likesError;
 
-      console.log('Emoji deleted successfully:', data);
+      // Delete from emojis table
+      const { error: emojiError } = await supabase
+        .from('emojis')
+        .delete()
+        .eq('id', emojiId);
+
+      if (emojiError) throw emojiError;
+
+      // Delete from storage
+      const imagePath = imageUrl.replace(supabase.supabaseUrl + '/storage/v1/object/public/', '');
+      const { error: storageError } = await supabase.storage
+        .from('emojis')
+        .remove([imagePath]);
+
+      if (storageError) throw storageError;
+
+      console.log('Emoji deleted successfully');
 
       // Update local state
       setEmojis(currentEmojis => currentEmojis.filter(emoji => emoji.id !== emojiId));
