@@ -204,17 +204,21 @@ export default function EmojiGrid() {
     }
   };
 
-  const handleDelete = async (emojiId: number) => {
+  const handleDelete = async (emojiId: number, imageUrl: string) => {
     if (!isAdmin) return;
 
     try {
-      const { error } = await supabase
-        .from('emojis')
-        .update({ deleted: true })
-        .eq('id', emojiId);
+      // Start a Supabase transaction
+      const { data, error } = await supabase.rpc('delete_emoji', {
+        p_emoji_id: emojiId,
+        p_image_url: imageUrl
+      });
 
       if (error) throw error;
 
+      console.log('Emoji deleted successfully:', data);
+
+      // Update local state
       setEmojis(currentEmojis => currentEmojis.filter(emoji => emoji.id !== emojiId));
     } catch (error) {
       console.error('Error deleting emoji:', error);
@@ -285,7 +289,7 @@ export default function EmojiGrid() {
                     size="icon"
                     variant="ghost"
                     className="text-white hover:text-red-300"
-                    onClick={() => handleDelete(emoji.id)}
+                    onClick={() => handleDelete(emoji.id, emoji.image_url)}
                   >
                     <Trash2 className="h-6 w-6" />
                   </Button>
