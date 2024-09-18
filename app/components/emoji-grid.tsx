@@ -28,7 +28,7 @@ export default function EmojiGrid() {
     fetchEmojis();
 
     const channel = supabase
-      .channel('public:emojis')
+      .channel('public:emojis_and_likes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'emojis' }, payload => {
         if (payload.eventType === 'INSERT' && !(payload.new as Emoji).deleted) {
           setEmojis(currentEmojis => [payload.new as Emoji, ...currentEmojis]);
@@ -41,6 +41,17 @@ export default function EmojiGrid() {
         } else if (payload.eventType === 'DELETE') {
           setEmojis(currentEmojis => 
             currentEmojis.filter(emoji => emoji.id !== payload.old.id)
+          );
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'emoji_likes' }, payload => {
+        if (payload.eventType === 'INSERT' || payload.eventType === 'DELETE') {
+          const emojiId = payload.new?.emoji_id || payload.old?.emoji_id;
+          const change = payload.eventType === 'INSERT' ? 1 : -1;
+          setEmojis(currentEmojis =>
+            currentEmojis.map(emoji =>
+              emoji.id === emojiId ? { ...emoji, likes_count: emoji.likes_count + change } : emoji
+            )
           );
         }
       })
@@ -98,23 +109,11 @@ export default function EmojiGrid() {
             .delete()
             .eq('user_id', user.id)
             .eq('emoji_id', emojiId);
-
-          setEmojis(currentEmojis =>
-            currentEmojis.map(emoji =>
-              emoji.id === emojiId ? { ...emoji, likes_count: emoji.likes_count - 1 } : emoji
-            )
-          );
         } else {
           throw error;
         }
-      } else {
-        // Like was successful
-        setEmojis(currentEmojis =>
-          currentEmojis.map(emoji =>
-            emoji.id === emojiId ? { ...emoji, likes_count: emoji.likes_count + 1 } : emoji
-          )
-        );
       }
+      // The UI will be updated by the real-time subscription
     } catch (error) {
       console.error('Error handling like:', error);
     }
