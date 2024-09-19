@@ -26,13 +26,17 @@ export default function EmojiGrid() {
   const { emojis: contextEmojis, addEmoji } = useEmoji();
 
   useEffect(() => {
+    let isMounted = true;
+    console.log('useEffect running');
+
     const fetchData = async () => {
       console.log('Fetching emojis');
-      await fetchEmojis();
+      if (isMounted) {
+        await fetchEmojis();
+      }
     };
 
     fetchData();
-    console.log('useEffect ran');
 
     const channel = supabase
       .channel('public:emojis_and_likes')
@@ -44,22 +48,27 @@ export default function EmojiGrid() {
 
     // Handle context emojis
     if (contextEmojis.length > 0) {
+      console.log('Handling context emojis:', contextEmojis);
       setEmojis(currentEmojis => {
         const newEmojis = contextEmojis.filter(newEmoji => 
           newEmoji.image_url && 
           !currentEmojis.some(existingEmoji => existingEmoji.id === newEmoji.id) &&
           !newEmoji.deleted
         );
+        console.log('New emojis to add:', newEmojis);
         return [...newEmojis, ...currentEmojis];
       });
     }
 
     return () => {
+      console.log('Cleaning up useEffect');
+      isMounted = false;
       supabase.removeChannel(channel);
     };
   }, [contextEmojis, user]);
 
   const fetchEmojis = async () => {
+    console.log('fetchEmojis function called');
     try {
       const { data: allEmojis, error: allEmojisError } = await supabase
         .from('emojis')
@@ -83,14 +92,17 @@ export default function EmojiGrid() {
         console.log('User likes:', userLikes);
       }
 
-      // We don't need to fetch likes_count separately as it's already in the emojis table
       const emojisWithLikes = allEmojis.map(emoji => ({
         ...emoji,
         isLikedByUser: user ? userLikes.includes(emoji.id) : false
       }));
 
-      setEmojis(emojisWithLikes);
-      console.log('Emojis with likes set:', emojisWithLikes);
+      console.log('Emojis with likes prepared:', emojisWithLikes);
+      setEmojis(prevEmojis => {
+        console.log('Previous emojis:', prevEmojis);
+        console.log('New emojis:', emojisWithLikes);
+        return emojisWithLikes;
+      });
     } catch (error) {
       console.error('Error fetching emojis:', error);
     } finally {
