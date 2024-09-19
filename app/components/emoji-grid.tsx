@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useUser } from "@clerk/nextjs";
 import { toast } from "react-hot-toast";
+import EmojiGenerator from './emoji-generator';
 
 // Define the structure of an Emoji object
 interface Emoji {
@@ -69,10 +70,12 @@ export default function EmojiGrid() {
       }
 
       // Combine emoji data with user likes
-      const processedEmojis = emojisData.map(emoji => ({
-        ...emoji,
-        is_liked_by_user: userLikes.includes(emoji.id)
-      }));
+      const processedEmojis = emojisData
+        .filter(emoji => emoji.image_url && emoji.image_url.startsWith('http'))
+        .map(emoji => ({
+          ...emoji,
+          is_liked_by_user: userLikes.includes(emoji.id)
+        }));
 
       setEmojis(processedEmojis);
     } catch (error) {
@@ -182,6 +185,11 @@ export default function EmojiGrid() {
     }
   };
 
+  // Function to handle new emoji creation
+  const handleNewEmojiCreated = (newEmoji: Emoji) => {
+    setEmojis(prevEmojis => [newEmoji, ...prevEmojis]);
+  };
+
   // Show loading indicator while data is being fetched
   if (isLoading) {
     return <div>Loading emojis...</div>;
@@ -190,23 +198,25 @@ export default function EmojiGrid() {
   // Render the emoji grid
   return (
     <div className="mt-8">
+     
       {emojis.length === 0 ? (
         <p className="text-center text-gray-500">No emojis generated yet. Create your first emoji!</p>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
           {emojis.map((emoji) => (
             <div key={emoji.id} className="relative group">
-              <Image
-                src={emoji.image_url}
-                alt={`Generated Emoji: ${emoji.prompt}`}
-                width={200}
-                height={200}
-                className={`w-full h-auto rounded-lg shadow-md transition-transform group-hover:scale-105 ${emoji.deleted ? 'opacity-50' : ''}`}
-                onError={(e) => {
-                  console.error(`Error loading image: ${emoji.image_url}`);
-                  e.currentTarget.src = "/placeholder.png";
-                }}
-              />
+              {emoji.image_url && (
+                <Image
+                  src={emoji.image_url}
+                  alt={`Generated Emoji: ${emoji.prompt}`}
+                  width={200}
+                  height={200}
+                  className={`w-full h-auto rounded-lg shadow-md transition-transform group-hover:scale-105 ${emoji.deleted ? 'opacity-50' : ''}`}
+                  onError={() => {
+                    console.error(`Error loading image: ${emoji.image_url}`);
+                  }}
+                />
+              )}
               <div className="absolute inset-0 bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center space-x-2">
                 <Button
                   size="icon"
