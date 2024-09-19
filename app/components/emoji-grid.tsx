@@ -187,12 +187,12 @@ export default function EmojiGrid() {
       }
 
       // Fetch the updated emoji data
-      await fetchEmojisWithLikes();
+      await fetchEmojis();
 
     } catch (error) {
       console.error('Error handling like:', error);
       // Revert local state if there's an error
-      await fetchEmojisWithLikes();
+      await fetchEmojis();
     }
   };
 
