@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { Heart, Download } from "lucide-react";
+import { Heart, Download, Trash2 } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { useEffect, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
@@ -16,6 +16,7 @@ interface Emoji {
   likes_count: number;
   creator_user_id: string;
   is_liked_by_user: boolean;
+  deleted: boolean;
 }
 
 // The main EmojiGrid component
@@ -41,15 +42,21 @@ export default function EmojiGrid() {
   const fetchEmojis = async () => {
     setIsLoading(true);
     try {
-      // Query the database for all emojis
-      const { data: emojisData, error: emojisError } = await supabase
+      let query = supabase
         .from('emojis')
         .select('*')
         .order('created_at', { ascending: false });
 
+      // Only filter out deleted emojis for non-admin users
+      if (user?.primaryEmailAddress?.emailAddress !== 'blodrena1@gmail.com') {
+        query = query.eq('deleted', false);
+      }
+
+      const { data: emojisData, error: emojisError } = await query;
+
       if (emojisError) throw emojisError;
 
-      // If the user is logged in, fetch their likes
+      // Fetch user likes if a user is logged in
       let userLikes: number[] = [];
       if (user) {
         const { data: likesData, error: likesError } = await supabase
@@ -58,11 +65,10 @@ export default function EmojiGrid() {
           .eq('user_id', user.id);
 
         if (likesError) throw likesError;
-
         userLikes = likesData.map(like => like.emoji_id);
       }
 
-      // Process the fetched data
+      // Combine emoji data with user likes
       const processedEmojis = emojisData.map(emoji => ({
         ...emoji,
         is_liked_by_user: userLikes.includes(emoji.id)
@@ -147,6 +153,35 @@ export default function EmojiGrid() {
     }
   };
 
+  // Function to handle deleting an emoji
+  const handleDelete = async (emojiId: number) => {
+    if (!user || user.primaryEmailAddress?.emailAddress !== 'blodrena1@gmail.com') {
+      toast.error("You don't have permission to delete emojis.");
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('emojis')
+        .update({ deleted: true })
+        .eq('id', emojiId);
+
+      if (error) throw error;
+
+      // Update the local state to reflect the deletion
+      setEmojis(currentEmojis =>
+        currentEmojis.map(e =>
+          e.id === emojiId ? { ...e, deleted: true } : e
+        )
+      );
+
+      toast.success("Emoji marked as deleted successfully.");
+    } catch (error) {
+      console.error('Error deleting emoji:', error);
+      toast.error("Failed to delete emoji. Please try again.");
+    }
+  };
+
   // Show loading indicator while data is being fetched
   if (isLoading) {
     return <div>Loading emojis...</div>;
@@ -166,7 +201,7 @@ export default function EmojiGrid() {
                 alt={`Generated Emoji: ${emoji.prompt}`}
                 width={200}
                 height={200}
-                className="w-full h-auto rounded-lg shadow-md transition-transform group-hover:scale-105"
+                className={`w-full h-auto rounded-lg shadow-md transition-transform group-hover:scale-105 ${emoji.deleted ? 'opacity-50' : ''}`}
                 onError={(e) => {
                   console.error(`Error loading image: ${emoji.image_url}`);
                   e.currentTarget.src = "/placeholder.png";
@@ -189,10 +224,25 @@ export default function EmojiGrid() {
                 >
                   <Download className="h-6 w-6" />
                 </Button>
+                {user?.primaryEmailAddress?.emailAddress === 'blodrena1@gmail.com' && (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="text-white hover:text-red-300"
+                    onClick={() => handleDelete(emoji.id)}
+                  >
+                    <Trash2 className="h-6 w-6" />
+                  </Button>
+                )}
               </div>
               <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 text-white px-2 py-1 rounded-md text-sm">
                 {emoji.likes_count} {emoji.likes_count === 1 ? 'like' : 'likes'}
               </div>
+              {emoji.deleted && (
+                <div className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded-md text-sm">
+                  Deleted
+                </div>
+              )}
             </div>
           ))}
         </div>
