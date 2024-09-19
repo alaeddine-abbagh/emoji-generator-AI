@@ -1,226 +1,132 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
-import { useUser } from "@clerk/nextjs";
-import { useEmoji } from '../contexts/emoji-context';
 import Image from "next/image";
-import { Heart, Download, Trash2 } from "lucide-react";
+import { Heart, Download } from "lucide-react";
 import { Button } from "../../components/ui/button";
+import { useEffect, useState } from "react";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { useUser } from "@clerk/nextjs";
+import { toast } from "react-hot-toast";
 
+// Define the structure of an Emoji object
 interface Emoji {
   id: number;
   image_url: string;
   prompt: string;
   likes_count: number;
   creator_user_id: string;
-  deleted: boolean;
-  isLikedByUser: boolean;
+  is_liked_by_user: boolean;
 }
 
+// The main EmojiGrid component
 export default function EmojiGrid() {
+  // State to store all emojis
   const [emojis, setEmojis] = useState<Emoji[]>([]);
+  
+  // State to show loading indicator
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Get the current user's information
   const { user } = useUser();
-  const isAdmin = user?.primaryEmailAddress?.emailAddress === 'blodrena1@gmail.com';
-  const { emojis: contextEmojis, addEmoji } = useEmoji();
+  
+  // Create a Supabase client for database operations
+  const supabase = createClientComponentClient();
 
+  // This effect runs when the component mounts or when the user changes
   useEffect(() => {
-    let isMounted = true;
-    console.log('useEffect running');
+    fetchEmojis();
+  }, [user]);
 
-    const fetchData = async () => {
-      console.log('Fetching emojis');
-      if (isMounted) {
-        await fetchEmojis();
-      }
-    };
-
-    fetchData();
-
-    const channel = supabase
-      .channel('public:emojis_and_likes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'emojis' }, handleEmojiChange)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'emoji_likes' }, handleLikeChange)
-      .subscribe();
-
-    console.log('Subscribed to real-time changes');
-
-    // Handle context emojis
-    if (contextEmojis.length > 0) {
-      console.log('Handling context emojis:', contextEmojis);
-      setEmojis(currentEmojis => {
-        const newEmojis = contextEmojis.filter(newEmoji => 
-          newEmoji.image_url && 
-          !currentEmojis.some(existingEmoji => existingEmoji.id === newEmoji.id) &&
-          !newEmoji.deleted
-        );
-        console.log('New emojis to add:', newEmojis);
-        return [...newEmojis, ...currentEmojis];
-      });
-    }
-
-    return () => {
-      console.log('Cleaning up useEffect');
-      isMounted = false;
-      supabase.removeChannel(channel);
-    };
-  }, [contextEmojis, user]);
-
+  // Function to fetch all emojis
   const fetchEmojis = async () => {
-    console.log('fetchEmojis function called');
+    setIsLoading(true);
     try {
-      const { data: allEmojis, error: allEmojisError } = await supabase
+      // Query the database for all emojis
+      const { data: emojisData, error: emojisError } = await supabase
         .from('emojis')
         .select('*')
-        .is('deleted', null)
         .order('created_at', { ascending: false });
 
-      if (allEmojisError) throw allEmojisError;
+      if (emojisError) throw emojisError;
 
-      console.log('All emojis fetched:', allEmojis);
-
+      // If the user is logged in, fetch their likes
       let userLikes: number[] = [];
       if (user) {
-        const { data: userLikesData, error: userLikesError } = await supabase
+        const { data: likesData, error: likesError } = await supabase
           .from('emoji_likes')
           .select('emoji_id')
           .eq('user_id', user.id);
 
-        if (userLikesError) throw userLikesError;
-        userLikes = userLikesData.map(like => like.emoji_id);
-        console.log('User likes:', userLikes);
+        if (likesError) throw likesError;
+
+        userLikes = likesData.map(like => like.emoji_id);
       }
 
-      const emojisWithLikes = allEmojis.map(emoji => ({
+      // Process the fetched data
+      const processedEmojis = emojisData.map(emoji => ({
         ...emoji,
-        isLikedByUser: user ? userLikes.includes(emoji.id) : false
+        is_liked_by_user: userLikes.includes(emoji.id)
       }));
 
-      console.log('Emojis with likes prepared:', emojisWithLikes);
-      setEmojis(prevEmojis => {
-        console.log('Previous emojis:', prevEmojis);
-        console.log('New emojis:', emojisWithLikes);
-        return emojisWithLikes;
-      });
+      setEmojis(processedEmojis);
     } catch (error) {
       console.error('Error fetching emojis:', error);
+      toast.error("Failed to load emojis. Please try again.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleEmojiChange = (payload: any) => {
-    if (payload.eventType === 'INSERT' && !(payload.new as Emoji).deleted) {
-      setEmojis(currentEmojis => [{ ...payload.new, likes_count: 0, isLikedByUser: false } as Emoji, ...currentEmojis]);
-    } else if (payload.eventType === 'UPDATE') {
-      setEmojis(currentEmojis => 
-        currentEmojis.map(emoji => 
-          emoji.id === payload.new.id ? { ...emoji, ...payload.new as Emoji } : emoji
-        ).filter(emoji => !emoji.deleted)
-      );
-    } else if (payload.eventType === 'DELETE') {
-      setEmojis(currentEmojis => 
-        currentEmojis.filter(emoji => emoji.id !== payload.old.id)
-      );
+  // Function to handle liking/unliking an emoji
+  const toggleLike = async (emojiId: number) => {
+    if (!user) {
+      toast.error("Please log in to like emojis.");
+      return;
     }
-  };
-
-  const handleLikeChange = async (payload: any) => {
-    const emojiId = payload.new?.emoji_id || payload.old?.emoji_id;
-    await fetchEmojis();
-  };
-
-  const handleLike = async (emojiId: number) => {
-    if (!user) return;
 
     try {
-      console.log(`Attempting to like/unlike emoji ${emojiId}`);
       const emoji = emojis.find(e => e.id === emojiId);
       if (!emoji) return;
 
-      const isLiked = emoji.isLikedByUser;
+      const isLiked = emoji.is_liked_by_user;
+      const newLikesCount = emoji.likes_count + (isLiked ? -1 : 1);
 
-      // Optimistically update local state
-      setEmojis(prevEmojis =>
-        prevEmojis.map(e =>
-          e.id === emojiId
-            ? {
-                ...e,
-                likes_count: isLiked ? Math.max(0, e.likes_count - 1) : e.likes_count + 1,
-                isLikedByUser: !isLiked
-              }
-            : e
-        )
-      );
-
+      // Update the emoji_likes table
       if (isLiked) {
-        // Unlike
-        const { error: deleteError } = await supabase
+        await supabase
           .from('emoji_likes')
           .delete()
           .eq('user_id', user.id)
           .eq('emoji_id', emojiId);
-
-        if (deleteError) throw deleteError;
-        console.log(`Successfully unliked emoji ${emojiId}`);
-
-        // Update likes_count in emojis table
-        const { error: updateError } = await supabase
-          .from('emojis')
-          .update({ likes_count: emoji.likes_count - 1 })
-          .eq('id', emojiId);
-
-        if (updateError) throw updateError;
       } else {
-        // Like
-        const { error: insertError } = await supabase
+        await supabase
           .from('emoji_likes')
-          .insert({ user_id: user.id, emoji_id: emojiId, prompt: emoji.prompt });
-
-        if (insertError) throw insertError;
-        console.log(`Successfully liked emoji ${emojiId}`);
-
-        // Update likes_count in emojis table
-        const { error: updateError } = await supabase
-          .from('emojis')
-          .update({ likes_count: emoji.likes_count + 1 })
-          .eq('id', emojiId);
-
-        if (updateError) throw updateError;
+          .insert({ user_id: user.id, emoji_id: emojiId });
       }
 
-      // Fetch the updated emoji data
-      await fetchEmojis();
-
-    } catch (error) {
-      console.error('Error handling like:', error);
-      // Revert local state if there's an error
-      await fetchEmojis();
-    }
-  };
-
-  const handleDelete = async (emojiId: number) => {
-    if (!isAdmin) return;
-
-    try {
-      // Mark emoji as deleted
-      const { error: emojiError } = await supabase
+      // Update the emojis table
+      await supabase
         .from('emojis')
-        .update({ deleted: new Date().toISOString() })
+        .update({ likes_count: newLikesCount })
         .eq('id', emojiId);
 
-      if (emojiError) throw emojiError;
-
-      console.log('Emoji marked as deleted successfully');
-
       // Update local state
-      setEmojis(currentEmojis => currentEmojis.filter(emoji => emoji.id !== emojiId));
+      setEmojis(currentEmojis =>
+        currentEmojis.map(e =>
+          e.id === emojiId
+            ? { ...e, likes_count: newLikesCount, is_liked_by_user: !isLiked }
+            : e
+        )
+      );
+
+      toast.success(isLiked ? "Emoji unliked!" : "Emoji liked!");
     } catch (error) {
-      console.error('Error marking emoji as deleted:', error);
+      console.error('Error toggling like:', error);
+      toast.error("An error occurred. Please try again.");
     }
   };
 
+  // Function to handle downloading an emoji
   const handleDownload = async (url: string, prompt: string) => {
     try {
       const response = await fetch(url);
@@ -237,13 +143,16 @@ export default function EmojiGrid() {
       URL.revokeObjectURL(blobUrl);
     } catch (error) {
       console.error('Error downloading emoji:', error);
+      toast.error("Failed to download emoji. Please try again.");
     }
   };
 
+  // Show loading indicator while data is being fetched
   if (isLoading) {
-    return <div>Loading...</div>;
+    return <div>Loading emojis...</div>;
   }
 
+  // Render the emoji grid
   return (
     <div className="mt-8">
       {emojis.length === 0 ? (
@@ -267,10 +176,10 @@ export default function EmojiGrid() {
                 <Button
                   size="icon"
                   variant="ghost"
-                  className={`text-white hover:text-purple-300 ${emoji.isLikedByUser ? 'text-purple-300' : ''}`}
-                  onClick={() => handleLike(emoji.id)}
+                  className="text-white hover:text-purple-300"
+                  onClick={() => toggleLike(emoji.id)}
                 >
-                  <Heart className={`h-6 w-6 ${emoji.isLikedByUser ? 'fill-current' : ''}`} />
+                  <Heart className={`h-6 w-6 ${emoji.is_liked_by_user ? 'fill-current text-red-500' : ''}`} />
                 </Button>
                 <Button
                   size="icon"
@@ -280,16 +189,6 @@ export default function EmojiGrid() {
                 >
                   <Download className="h-6 w-6" />
                 </Button>
-                {isAdmin && (
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="text-white hover:text-red-300"
-                    onClick={() => handleDelete(emoji.id)}
-                  >
-                    <Trash2 className="h-6 w-6" />
-                  </Button>
-                )}
               </div>
               <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 text-white px-2 py-1 rounded-md text-sm">
                 {emoji.likes_count} {emoji.likes_count === 1 ? 'like' : 'likes'}
