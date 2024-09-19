@@ -28,13 +28,16 @@ export default function EmojiGrid() {
   useEffect(() => {
     const fetchData = async () => {
       if (user) {
+        console.log('Fetching emojis with likes for user:', user.id);
         await fetchEmojisWithLikes();
       } else {
+        console.log('Fetching emojis without likes');
         await fetchEmojisWithoutLikes();
       }
     };
 
     fetchData();
+    console.log('useEffect ran');
 
     const channel = supabase
       .channel('public:emojis_and_likes')
@@ -71,6 +74,8 @@ export default function EmojiGrid() {
 
       if (allEmojisError) throw allEmojisError;
 
+      console.log('All emojis fetched:', allEmojis);
+
       let userLikes: number[] = [];
       if (user) {
         const { data: userLikesData, error: userLikesError } = await supabase
@@ -80,6 +85,7 @@ export default function EmojiGrid() {
 
         if (userLikesError) throw userLikesError;
         userLikes = userLikesData.map(like => like.emoji_id);
+        console.log('User likes:', userLikes);
       }
 
       const emojisWithLikes = allEmojis.map(emoji => ({
@@ -88,7 +94,7 @@ export default function EmojiGrid() {
       }));
 
       setEmojis(emojisWithLikes);
-      console.log('Emojis with likes fetched:', emojisWithLikes);
+      console.log('Emojis with likes set:', emojisWithLikes);
     } catch (error) {
       console.error('Error fetching emojis with likes:', error);
     } finally {
@@ -109,6 +115,8 @@ export default function EmojiGrid() {
 
       if (error) throw error;
 
+      console.log('Emojis without likes fetched:', data);
+
       const emojisWithLikes = data.map(emoji => ({
         ...emoji,
         likes_count: emoji.likes_count[0]?.count || 0,
@@ -116,6 +124,7 @@ export default function EmojiGrid() {
       }));
 
       setEmojis(emojisWithLikes);
+      console.log('Emojis without likes set:', emojisWithLikes);
     } catch (error) {
       console.error('Error fetching emojis without likes:', error);
     } finally {
