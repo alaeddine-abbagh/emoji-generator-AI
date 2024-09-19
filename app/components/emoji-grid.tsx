@@ -83,20 +83,9 @@ export default function EmojiGrid() {
         console.log('User likes:', userLikes);
       }
 
-      const { data: likesCount, error: likesCountError } = await supabase
-        .from('emoji_likes')
-        .select('emoji_id');
-
-      if (likesCountError) throw likesCountError;
-
-      const likesCountMap = new Map();
-      likesCount.forEach(like => {
-        likesCountMap.set(like.emoji_id, (likesCountMap.get(like.emoji_id) || 0) + 1);
-      });
-
+      // We don't need to fetch likes_count separately as it's already in the emojis table
       const emojisWithLikes = allEmojis.map(emoji => ({
         ...emoji,
-        likes_count: likesCountMap.get(emoji.id) || 0,
         isLikedByUser: user ? userLikes.includes(emoji.id) : false
       }));
 
@@ -166,26 +155,27 @@ export default function EmojiGrid() {
 
         // Update likes_count in emojis table
         const { error: updateError } = await supabase
-          .rpc('decrement_likes_count', { emoji_id: emojiId });
+          .from('emojis')
+          .update({ likes_count: emoji.likes_count - 1 })
+          .eq('id', emojiId);
 
         if (updateError) throw updateError;
       } else {
         // Like
-        const { data, error } = await supabase
+        const { error: insertError } = await supabase
           .from('emoji_likes')
-          .insert({ user_id: user.id, emoji_id: emojiId, prompt: emoji.prompt })
-          .select();
+          .insert({ user_id: user.id, emoji_id: emojiId, prompt: emoji.prompt });
 
-        if (error) throw error;
-        if (data && data.length > 0) {
-          console.log(`Successfully liked emoji ${emojiId}`);
+        if (insertError) throw insertError;
+        console.log(`Successfully liked emoji ${emojiId}`);
 
-          // Update likes_count in emojis table
-          const { error: updateError } = await supabase
-            .rpc('increment_likes_count', { emoji_id: emojiId });
+        // Update likes_count in emojis table
+        const { error: updateError } = await supabase
+          .from('emojis')
+          .update({ likes_count: emoji.likes_count + 1 })
+          .eq('id', emojiId);
 
-          if (updateError) throw updateError;
-        }
+        if (updateError) throw updateError;
       }
 
       // Fetch the updated emoji data
