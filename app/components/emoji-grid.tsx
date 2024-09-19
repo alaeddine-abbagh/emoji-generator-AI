@@ -85,12 +85,14 @@ export default function EmojiGrid() {
 
       const { data: likesCount, error: likesCountError } = await supabase
         .from('emoji_likes')
-        .select('emoji_id, count')
-        .groupBy('emoji_id');
+        .select('emoji_id');
 
       if (likesCountError) throw likesCountError;
 
-      const likesCountMap = new Map(likesCount.map(item => [item.emoji_id, item.count]));
+      const likesCountMap = new Map();
+      likesCount.forEach(like => {
+        likesCountMap.set(like.emoji_id, (likesCountMap.get(like.emoji_id) || 0) + 1);
+      });
 
       const emojisWithLikes = allEmojis.map(emoji => ({
         ...emoji,
