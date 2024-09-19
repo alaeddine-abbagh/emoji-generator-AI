@@ -27,13 +27,8 @@ export default function EmojiGrid() {
 
   useEffect(() => {
     const fetchData = async () => {
-      if (user) {
-        console.log('Fetching emojis with likes for user:', user.id);
-        await fetchEmojisWithLikes();
-      } else {
-        console.log('Fetching emojis without likes');
-        await fetchEmojisWithoutLikes();
-      }
+      console.log('Fetching emojis');
+      await fetchEmojis();
     };
 
     fetchData();
@@ -64,7 +59,7 @@ export default function EmojiGrid() {
     };
   }, [contextEmojis, user]);
 
-  const fetchEmojisWithLikes = async () => {
+  const fetchEmojis = async () => {
     try {
       const { data: allEmojis, error: allEmojisError } = await supabase
         .from('emojis')
@@ -88,45 +83,25 @@ export default function EmojiGrid() {
         console.log('User likes:', userLikes);
       }
 
+      const { data: likesCount, error: likesCountError } = await supabase
+        .from('emoji_likes')
+        .select('emoji_id, count')
+        .groupBy('emoji_id');
+
+      if (likesCountError) throw likesCountError;
+
+      const likesCountMap = new Map(likesCount.map(item => [item.emoji_id, item.count]));
+
       const emojisWithLikes = allEmojis.map(emoji => ({
         ...emoji,
+        likes_count: likesCountMap.get(emoji.id) || 0,
         isLikedByUser: user ? userLikes.includes(emoji.id) : false
       }));
 
       setEmojis(emojisWithLikes);
       console.log('Emojis with likes set:', emojisWithLikes);
     } catch (error) {
-      console.error('Error fetching emojis with likes:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const fetchEmojisWithoutLikes = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('emojis')
-        .select(`
-          *,
-          likes_count: emoji_likes(count)
-        `)
-        .is('deleted', null)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      console.log('Emojis without likes fetched:', data);
-
-      const emojisWithLikes = data.map(emoji => ({
-        ...emoji,
-        likes_count: emoji.likes_count[0]?.count || 0,
-        isLikedByUser: false
-      }));
-
-      setEmojis(emojisWithLikes);
-      console.log('Emojis without likes set:', emojisWithLikes);
-    } catch (error) {
-      console.error('Error fetching emojis without likes:', error);
+      console.error('Error fetching emojis:', error);
     } finally {
       setIsLoading(false);
     }
@@ -150,7 +125,7 @@ export default function EmojiGrid() {
 
   const handleLikeChange = async (payload: any) => {
     const emojiId = payload.new?.emoji_id || payload.old?.emoji_id;
-    await fetchEmojisWithLikes();
+    await fetchEmojis();
   };
 
   const handleLike = async (emojiId: number) => {
