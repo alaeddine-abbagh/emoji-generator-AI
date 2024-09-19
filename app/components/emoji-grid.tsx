@@ -65,10 +65,7 @@ export default function EmojiGrid() {
     try {
       const { data: allEmojis, error: allEmojisError } = await supabase
         .from('emojis')
-        .select(`
-          *,
-          likes_count: emoji_likes(count)
-        `)
+        .select('*')
         .is('deleted', null)
         .order('created_at', { ascending: false });
 
@@ -87,7 +84,6 @@ export default function EmojiGrid() {
 
       const emojisWithLikes = allEmojis.map(emoji => ({
         ...emoji,
-        likes_count: emoji.likes_count[0]?.count || 0,
         isLikedByUser: user ? userLikes.includes(emoji.id) : false
       }));
 
@@ -181,16 +177,28 @@ export default function EmojiGrid() {
 
         if (deleteError) throw deleteError;
         console.log(`Successfully unliked emoji ${emojiId}`);
+
+        // Update likes_count in emojis table
+        const { error: updateError } = await supabase
+          .rpc('decrement_likes_count', { emoji_id: emojiId });
+
+        if (updateError) throw updateError;
       } else {
         // Like
         const { data, error } = await supabase
           .from('emoji_likes')
-          .upsert({ user_id: user.id, emoji_id: emojiId }, { onConflict: 'user_id,emoji_id' })
+          .insert({ user_id: user.id, emoji_id: emojiId, prompt: emoji.prompt })
           .select();
 
         if (error) throw error;
         if (data && data.length > 0) {
           console.log(`Successfully liked emoji ${emojiId}`);
+
+          // Update likes_count in emojis table
+          const { error: updateError } = await supabase
+            .rpc('increment_likes_count', { emoji_id: emojiId });
+
+          if (updateError) throw updateError;
         }
       }
 
