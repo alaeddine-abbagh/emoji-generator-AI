@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useUser } from "@clerk/nextjs";
 import { toast } from "react-hot-toast";
-import EmojiGenerator from './emoji-generator';
+
 
 // Define the structure of an Emoji object
 interface Emoji {
@@ -187,7 +187,12 @@ export default function EmojiGrid() {
 
   // Function to handle new emoji creation
   const handleNewEmojiCreated = (newEmoji: Emoji) => {
-    setEmojis(prevEmojis => [newEmoji, ...prevEmojis]);
+    console.log("New emoji created:", newEmoji);
+    setEmojis(prevEmojis => {
+      const updatedEmojis = [newEmoji, ...prevEmojis];
+      console.log("Updated emojis state:", updatedEmojis);
+      return updatedEmojis;
+    });
   };
 
   // Show loading indicator while data is being fetched

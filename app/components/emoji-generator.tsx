@@ -1,18 +1,20 @@
 "use client";
 
-import React, { useState } from 'react';
-import { useEmoji } from '../contexts/emoji-context';
+import React, { useState, useCallback } from 'react';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Loader2 } from 'lucide-react';
 
-export default function EmojiGenerator() {
+interface EmojiGeneratorProps {
+  onEmojiCreated: (newEmoji: Emoji) => void;
+}
+
+export default function EmojiGenerator({ onEmojiCreated }: EmojiGeneratorProps) {
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<{ message: string; details?: string } | null>(null);
-  const { addEmoji } = useEmoji();
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = useCallback(async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsGenerating(true);
     setError(null);
@@ -41,18 +43,25 @@ export default function EmojiGenerator() {
         throw new Error("No URL returned from API");
       }
 
-      if (data.url) {
-        addEmoji({ id: Date.now(), image_url: data.url, prompt, likes_count: 0, creator_user_id: '' });
-      } else {
-        console.error("No URL returned for the generated emoji");
-      }
-      setPrompt(''); // Clear the input after successful generation
+      const newEmoji = { 
+        id: Date.now(), 
+        image_url: data.url, 
+        prompt, 
+        likes_count: 0, 
+        creator_user_id: '', 
+        is_liked_by_user: false, 
+        deleted: false 
+      };
+      console.log("Calling onEmojiCreated with:", newEmoji);
+      onEmojiCreated(newEmoji);
+
+      setPrompt('');
     } catch (error) {
       console.error("Error generating emoji:", error);
       if (error instanceof Error) {
         setError({ 
           message: error.message, 
-          details: (error as any).details // Type assertion for potential 'details' property
+          details: (error as any).details
         });
       } else {
         setError({ message: "An unknown error occurred" });
@@ -60,7 +69,7 @@ export default function EmojiGenerator() {
     } finally {
       setIsGenerating(false);
     }
-  };
+  }, [prompt, onEmojiCreated]);
 
   return (
     <div className="space-y-4">
