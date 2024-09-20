@@ -22,12 +22,11 @@ interface Emoji {
 
 // Define the props for the EmojiGrid component
 interface EmojiGridProps {
-  emojis: Emoji[];
-  isLoading: boolean;
+  
 }
 
 // The main EmojiGrid component
-const EmojiGrid: React.FC<EmojiGridProps> = ({ emojis, isLoading }) => {
+const EmojiGrid: React.FC<EmojiGridProps> = ({  }) => {
   // State to store all emojis
   const [currentEmojis, setCurrentEmojis] = useState<Emoji[]>([]);
   

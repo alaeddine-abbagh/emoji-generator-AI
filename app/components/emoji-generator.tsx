@@ -71,7 +71,7 @@ export default function EmojiGenerator({ onEmojiCreated }: EmojiGeneratorProps) 
       if (error instanceof Error) {
         setError({ 
           message: error.message, 
-          details: (error as any).details
+          details: (error as { details?: string }).details
         });
       } else {
         setError({ message: "An unknown error occurred" });
