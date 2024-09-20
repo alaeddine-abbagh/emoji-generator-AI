@@ -34,7 +34,7 @@ async function ensureEmojiBucketExists() {
 
   if (!emojiBucketExists) {
     console.log("Creating 'emojis' bucket");
-    const { data, error } = await supabaseAdmin.storage.createBucket("emojis", { public: true });
+    const { error } = await supabaseAdmin.storage.createBucket("emojis", { public: true });
     if (error) {
       console.error("Error creating 'emojis' bucket:", error);
       throw new Error(`Failed to create 'emojis' bucket: ${error.message}`);
@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
 
     if (!existingProfile) {
        // Create new profile
-     const { data: newProfile, error: insertError } = await supabase
+     const { error: insertError } = await supabase
      .from("profiles")
      .insert({
        user_id: userId,

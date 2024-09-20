@@ -40,11 +40,6 @@ const EmojiGrid: React.FC<EmojiGridProps> = ({ emojis, isLoading }) => {
   // Create a Supabase client for database operations
   const supabase = createClientComponentClient();
 
-  // This effect runs when the component mounts or when the user changes
-  useEffect(() => {
-    fetchEmojis();
-  }, [user]);
-
   // Function to fetch all emojis
   const fetchEmojis = async () => {
     setIsCurrentLoading(true);
@@ -91,6 +86,11 @@ const EmojiGrid: React.FC<EmojiGridProps> = ({ emojis, isLoading }) => {
       setIsCurrentLoading(false);
     }
   };
+
+  // This effect runs when the component mounts or when the user changes
+  useEffect(() => {
+    fetchEmojis();
+  }, []);
 
   // Function to handle liking/unliking an emoji
   const toggleLike = async (emojiId: number) => {
@@ -185,11 +185,6 @@ const EmojiGrid: React.FC<EmojiGridProps> = ({ emojis, isLoading }) => {
       console.error('Error deleting emoji:', error);
       toast.error("Failed to delete emoji. Please try again.");
     }
-  };
-
-  // Function to handle new emoji creation
-  const handleNewEmojiCreated = (newEmoji: Emoji) => {
-    setCurrentEmojis([newEmoji, ...currentEmojis]);
   };
 
   // Show loading indicator while data is being fetched

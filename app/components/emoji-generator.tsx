@@ -66,7 +66,7 @@ export default function EmojiGenerator({ onEmojiCreated }: EmojiGeneratorProps) 
       onEmojiCreated(newEmoji);
 
       setPrompt('');
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Error generating emoji:", error);
       if (error instanceof Error) {
         setError({ 
