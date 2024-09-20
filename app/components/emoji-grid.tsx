@@ -20,13 +20,19 @@ interface Emoji {
   deleted: boolean;
 }
 
+// Define the props for the EmojiGrid component
+interface EmojiGridProps {
+  emojis: Emoji[];
+  isLoading: boolean;
+}
+
 // The main EmojiGrid component
-export default function EmojiGrid() {
+const EmojiGrid: React.FC<EmojiGridProps> = ({ emojis, isLoading }) => {
   // State to store all emojis
-  const [emojis, setEmojis] = useState<Emoji[]>([]);
+  const [currentEmojis, setCurrentEmojis] = useState<Emoji[]>([]);
   
   // State to show loading indicator
-  const [isLoading, setIsLoading] = useState(true);
+  const [isCurrentLoading, setIsCurrentLoading] = useState(true);
   
   // Get the current user's information
   const { user } = useUser();
@@ -41,7 +47,7 @@ export default function EmojiGrid() {
 
   // Function to fetch all emojis
   const fetchEmojis = async () => {
-    setIsLoading(true);
+    setIsCurrentLoading(true);
     try {
       let query = supabase
         .from('emojis')
@@ -77,12 +83,12 @@ export default function EmojiGrid() {
           is_liked_by_user: userLikes.includes(emoji.id)
         }));
 
-      setEmojis(processedEmojis);
+      setCurrentEmojis(processedEmojis);
     } catch (error) {
       console.error('Error fetching emojis:', error);
       toast.error("Failed to load emojis. Please try again.");
     } finally {
-      setIsLoading(false);
+      setIsCurrentLoading(false);
     }
   };
 
@@ -94,7 +100,7 @@ export default function EmojiGrid() {
     }
 
     try {
-      const emoji = emojis.find(e => e.id === emojiId);
+      const emoji = currentEmojis.find(e => e.id === emojiId);
       if (!emoji) return;
 
       const isLiked = emoji.is_liked_by_user;
@@ -120,13 +126,11 @@ export default function EmojiGrid() {
         .eq('id', emojiId);
 
       // Update local state
-      setEmojis(currentEmojis =>
-        currentEmojis.map(e =>
-          e.id === emojiId
-            ? { ...e, likes_count: newLikesCount, is_liked_by_user: !isLiked }
-            : e
-        )
-      );
+      setCurrentEmojis(currentEmojis.map(e =>
+        e.id === emojiId
+          ? { ...e, likes_count: newLikesCount, is_liked_by_user: !isLiked }
+          : e
+      ));
 
       toast.success(isLiked ? "Emoji unliked!" : "Emoji liked!");
     } catch (error) {
@@ -172,11 +176,9 @@ export default function EmojiGrid() {
       if (error) throw error;
 
       // Update the local state to reflect the deletion
-      setEmojis(currentEmojis =>
-        currentEmojis.map(e =>
-          e.id === emojiId ? { ...e, deleted: true } : e
-        )
-      );
+      setCurrentEmojis(currentEmojis.map(e =>
+        e.id === emojiId ? { ...e, deleted: true } : e
+      ));
 
       toast.success("Emoji marked as deleted successfully.");
     } catch (error) {
@@ -187,11 +189,11 @@ export default function EmojiGrid() {
 
   // Function to handle new emoji creation
   const handleNewEmojiCreated = (newEmoji: Emoji) => {
-    setEmojis(prevEmojis => [newEmoji, ...prevEmojis]);
+    setCurrentEmojis([newEmoji, ...currentEmojis]);
   };
 
   // Show loading indicator while data is being fetched
-  if (isLoading) {
+  if (isCurrentLoading) {
     return <div>Loading emojis...</div>;
   }
 
@@ -199,11 +201,11 @@ export default function EmojiGrid() {
   return (
     <div className="mt-8">
      
-      {emojis.length === 0 ? (
+      {currentEmojis.length === 0 ? (
         <p className="text-center text-gray-500">No emojis generated yet. Create your first emoji!</p>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-          {emojis.map((emoji) => (
+          {currentEmojis.map((emoji) => (
             <div key={emoji.id} className="relative group">
               {emoji.image_url && (
                 <Image
@@ -260,3 +262,5 @@ export default function EmojiGrid() {
     </div>
   );
 }
+
+export default EmojiGrid;
