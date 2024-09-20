@@ -187,12 +187,7 @@ export default function EmojiGrid() {
 
   // Function to handle new emoji creation
   const handleNewEmojiCreated = (newEmoji: Emoji) => {
-    console.log("New emoji created:", newEmoji);
-    setEmojis(prevEmojis => {
-      const updatedEmojis = [newEmoji, ...prevEmojis];
-      console.log("Updated emojis state:", updatedEmojis);
-      return updatedEmojis;
-    });
+    setEmojis(prevEmojis => [newEmoji, ...prevEmojis]);
   };
 
   // Show loading indicator while data is being fetched
