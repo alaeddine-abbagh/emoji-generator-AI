@@ -1,36 +1,75 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Emoji Maker
+
+Emoji Maker is a web application that allows users to generate custom emojis using AI. Users can input a description, and the application will create a unique emoji based on that input.
+
+## Project Structure
+
+### `app/page.tsx`
+
+This is the main page component of the application. It handles:
+- State management for emojis
+- Fetching emojis from the database
+- Rendering the EmojiGenerator and EmojiGrid components
+- Updating the emoji list when a new emoji is created
+
+### `app/layout.tsx`
+
+This is the root layout component. It:
+- Sets up the Clerk authentication provider
+- Applies global styles and fonts
+- Renders the Header component and main content
+- Handles signed-in and signed-out states
+
+### `app/components/emoji-generator.tsx`
+
+This component is responsible for:
+- Rendering the emoji generation form
+- Handling form submission
+- Making API calls to generate new emojis
+- Updating the parent component when a new emoji is created
+
+### `app/api/generate-emoji/route.ts`
+
+This is the API route for generating emojis. It:
+- Authenticates the user using Clerk
+- Checks and manages user credits
+- Generates an emoji using the Replicate API
+- Uploads the generated emoji to Supabase storage
+- Saves emoji data to the database
+- Updates user credits after successful generation
+
+### `components/ui/input.tsx`
+
+This is a reusable Input component used in the emoji generation form.
+
+## Key Features
+
+1. **User Authentication**: Uses Clerk for user authentication and management.
+2. **Emoji Generation**: Utilizes the Replicate API to generate custom emojis based on user input.
+3. **Database Integration**: Uses Supabase for storing emoji data and user profiles.
+4. **Credit System**: Implements a credit system to limit emoji generation.
+5. **Real-time Updates**: Newly generated emojis appear immediately without page refresh.
 
 ## Getting Started
 
-First, run the development server:
+1. Clone the repository
+2. Install dependencies: `npm install`
+3. Set up environment variables:
+   - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+   - NEXT_PUBLIC_SUPABASE_URL
+   - SUPABASE_SERVICE_ROLE_KEY
+   - REPLICATE_API_TOKEN
+4. Run the development server: `npm run dev`
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## Development Notes
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- The project uses Next.js with TypeScript for type safety.
+- State management is handled using React hooks (useState, useEffect, useCallback).
+- API routes are implemented using Next.js API routes.
+- The UI is styled using Tailwind CSS.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+When working on this project, pay attention to:
+- User authentication flow with Clerk
+- Credit management for users
+- Error handling in the emoji generation process
+- Real-time updates of the emoji grid after generation
