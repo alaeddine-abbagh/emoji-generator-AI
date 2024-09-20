@@ -22,7 +22,7 @@ const replicate = new Replicate({
   auth: process.env.REPLICATE_API_TOKEN,
 });
 
-async function ensureEmojiBucketExists(supabase) {
+async function ensureEmojiBucketExists() {
   const { data: buckets, error: bucketsError } = await supabaseAdmin.storage.listBuckets();
 
   if (bucketsError) {
@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
     console.log("Starting emoji generation process");
 
     // Ensure the "emojis" bucket exists
-    await ensureEmojiBucketExists(supabase);
+    await ensureEmojiBucketExists();
 
     // Step 1: Get the user's information from Clerk
     const { userId } = getAuth(req);
@@ -231,3 +231,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Failed to generate emoji" }, { status: 500 });
   }
 }
+
+export const runtime = 'edge'; 
+export const maxDuration = 300; // 5 mins 
