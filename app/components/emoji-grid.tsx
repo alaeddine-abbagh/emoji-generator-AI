@@ -90,7 +90,7 @@ const EmojiGrid: React.FC<EmojiGridProps> = ({ emojis, isLoading }) => {
   // This effect runs when the component mounts or when the user changes
   useEffect(() => {
     fetchEmojis();
-  }, []);
+  }, [fetchEmojis]);
 
   // Function to handle liking/unliking an emoji
   const toggleLike = async (emojiId: number) => {

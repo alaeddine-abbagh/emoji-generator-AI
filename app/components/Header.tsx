@@ -9,7 +9,7 @@ export default function Header() {
   return (
     <header className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6 shadow-lg">
       <div className="container mx-auto flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Aladin's Emoji Maker</h1>
+        <h1 className="text-2xl font-bold">Aladin&apos;s Emoji Maker</h1>
         <div className="flex items-center space-x-4">
           <div className="flex items-center space-x-2">
             <Mail className="h-5 w-5" />

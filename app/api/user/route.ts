@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
 
   try {
     // Check if user exists in profiles table
-    let { data: profile, error } = await supabase
+    const { data: profile, error } = await supabase
       .from('profiles')
       .select('*')
       .eq('user_id', userId)
