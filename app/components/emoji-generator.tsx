@@ -30,7 +30,7 @@ export default function EmojiGenerator({ onEmojiCreated }: EmojiGeneratorProps) 
     setError(null);
 
     try {
-      const response = await fetch("/api/generate-emoji", {
+      const response: Response  = await fetch("/api/generate-emoji", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

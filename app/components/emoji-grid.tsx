@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { Heart, Download, Trash2 } from "lucide-react";
 import { Button } from "../../components/ui/button";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useUser } from "@clerk/nextjs";
 import { toast } from "react-hot-toast";
@@ -41,7 +41,7 @@ const EmojiGrid: React.FC<EmojiGridProps> = ({ emojis, isLoading }) => {
   const supabase = createClientComponentClient();
 
   // Function to fetch all emojis
-  const fetchEmojis = async () => {
+  const fetchEmojis = useCallback(async () => {
     setIsCurrentLoading(true);
     try {
       let query = supabase
@@ -85,7 +85,7 @@ const EmojiGrid: React.FC<EmojiGridProps> = ({ emojis, isLoading }) => {
     } finally {
       setIsCurrentLoading(false);
     }
-  };
+  }, [user, supabase]);
 
   // This effect runs when the component mounts or when the user changes
   useEffect(() => {
