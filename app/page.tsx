@@ -86,7 +86,7 @@ export default function Home() {
           <div className="p-6">
             <h1 className="text-4xl font-bold text-center mb-8 text-purple-800">Emoji Maker</h1>
             <EmojiGenerator onEmojiCreated={handleNewEmojiCreated} />
-            <EmojiGrid key={emojis.length} emojis={emojis} isLoading={isLoading} />
+            <EmojiGrid />
           </div>
         </div>
       </div>
