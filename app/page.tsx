@@ -18,7 +18,9 @@ interface Emoji {
 }
 
 export default function Home() {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [emojis, setEmojis] = useState<Emoji[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [isLoading, setIsLoading] = useState(true);
   const { user } = useUser();
   const supabase = createClientComponentClient();
